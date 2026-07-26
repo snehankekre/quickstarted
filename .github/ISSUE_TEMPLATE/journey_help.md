@@ -18,4 +18,4 @@ labels: question
 
 Worth checking first: does the success script assert a path the documentation
 never mentions? That is the most common cause. See
-https://snehankekre.github.io/quickstarted/guides/writing-journeys/
+https://snehankekre.com/quickstarted/guides/writing-journeys/

@@ -15,7 +15,7 @@ it and you never find out. quickstarted turns that failure into a CI signal: a
 sandboxed agent gets your goal, your docs, and nothing else, and a script you
 wrote decides whether it succeeded.
 
-Full documentation: **https://snehankekre.github.io/quickstarted/**
+Full documentation: **https://snehankekre.com/quickstarted/**
 
 **Status: early. The interface will change.**
 

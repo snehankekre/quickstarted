@@ -12,4 +12,4 @@ labels: enhancement
 
 Note: proposals that put a model in the scoring path, or that score the
 presence of an affordance such as llms.txt, will be declined. See
-https://snehankekre.github.io/quickstarted/explanation/scoring/
+https://snehankekre.com/quickstarted/explanation/scoring/

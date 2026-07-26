@@ -7,9 +7,9 @@ goal: >
   your file is valid using the tool itself, and save the tool's validation
   output to validated.txt.
 docs:
-  entrypoint: https://snehankekre.github.io/quickstarted/getting-started/first-run.md
+  entrypoint: https://snehankekre.com/quickstarted/getting-started/first-run.md
   allow:
-    - snehankekre.github.io
+    - snehankekre.com
 setup:
   - python3 -m venv .venv
 success:

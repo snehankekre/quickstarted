@@ -1,6 +1,6 @@
 site_name: quickstarted
 site_description: Test whether an AI agent can complete your quickstart by following your docs.
-site_url: https://snehankekre.github.io/quickstarted/
+site_url: https://snehankekre.com/quickstarted/
 repo_url: https://github.com/snehankekre/quickstarted
 repo_name: snehankekre/quickstarted
 edit_uri: edit/main/docs/

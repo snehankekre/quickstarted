@@ -69,5 +69,5 @@ never scores affordances. It withholds them and measures what changes.
 
 Every page here is available as raw Markdown: append `.md` to any URL. An index
 of the whole site lives at
-[llms.txt](https://snehankekre.github.io/quickstarted/llms.txt). Both are
+[llms.txt](https://snehankekre.com/quickstarted/llms.txt). Both are
 generated at build time from the same navigation as the site.
