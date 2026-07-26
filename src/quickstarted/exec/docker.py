@@ -82,8 +82,10 @@ class DockerExecutor:
         self.keep = keep
         self.image = image
         self.trace = trace
+        # Nothing but the task's own files goes in here: HOME and TMPDIR point
+        # at the container's filesystem, so a scaffolder that demands an empty
+        # directory gets one.
         self.root = Path(tempfile.mkdtemp(prefix="quickstarted-"))
-        (self.root / "tmp").mkdir()
         # mkdtemp gives 0700 owned by the invoking user. Where the daemon remaps
         # container root to another uid (rootless Docker, userns-remap, some CI
         # runners), that uid cannot write the bind mount and every task dies
@@ -91,7 +93,6 @@ class DockerExecutor:
         # container to a non-root user, because a quickstart is allowed to say
         # `apt-get install`.
         os.chmod(self.root, 0o777)
-        os.chmod(self.root / "tmp", 0o777)
         token = uuid.uuid4().hex[:10]
         self.network = f"quickstarted-net-{token}"
         self.proxy_name = f"quickstarted-proxy-{token}"
@@ -145,8 +146,13 @@ class DockerExecutor:
                 "--pids-limit", "512",
                 "-v", f"{self.root}:/workspace",
                 "-w", "/workspace",
-                "-e", "HOME=/workspace",
-                "-e", "TMPDIR=/workspace/tmp",
+                # HOME and TMPDIR stay off the bind mount. A HOME inside the
+                # workspace fills it with dotfiles, and every scaffolding tool
+                # (`npm create`, `django-admin startproject .`) refuses to run
+                # in a directory that is not empty. Both live on the container's
+                # own filesystem, which is thrown away with the container.
+                "-e", "HOME=/root",
+                "-e", "TMPDIR=/tmp",
                 "-e", "NO_COLOR=1",
                 "-e", "TERM=dumb",
                 *env_args,

@@ -29,8 +29,12 @@ def available() -> bool:
     return platform.system() == "Darwin" and Path(SANDBOX_EXEC).is_file()
 
 
-def build_profile(workspace: Path, proxy_port: int | None, real_home: Path) -> str:
-    """Seatbelt profile source. Later rules win, so order is load-bearing."""
+def build_profile(sandbox: Path, proxy_port: int | None, real_home: Path) -> str:
+    """Seatbelt profile source. Later rules win, so order is load-bearing.
+
+    `sandbox` is the parent of both the workspace and the agent's HOME, so one
+    subpath rule covers everything the run may write.
+    """
     lines = [
         "(version 1)",
         "(deny default)",
@@ -45,9 +49,9 @@ def build_profile(workspace: Path, proxy_port: int | None, real_home: Path) -> s
         "(allow file-read*)",
         # ... but not the user's own files. This is the point.
         f'(deny file-read* (subpath "{real_home}"))',
-        f'(allow file-read* (subpath "{workspace}"))',
-        # Writes stay in the workspace, plus the device files tools expect.
-        f'(allow file-write* (subpath "{workspace}"))',
+        f'(allow file-read* (subpath "{sandbox}"))',
+        # Writes stay inside the sandbox, plus the device files tools expect.
+        f'(allow file-write* (subpath "{sandbox}"))',
         '(allow file-write* (regex #"^/dev/"))',
         "(allow file-ioctl)",
     ]
@@ -75,8 +79,8 @@ class SeatbeltExecutor(ProcessExecutor):
         if proxy_url:
             port = int(proxy_url.rsplit(":", 1)[-1].strip("/"))
         real_home = Path(os.path.expanduser("~")).resolve()
-        self.profile = build_profile(self.root.resolve(), port, real_home)
-        self._profile_path = self.root / "tmp" / ".quickstarted-sandbox.sb"
+        self.profile = build_profile(self.base.resolve(), port, real_home)
+        self._profile_path = self.support / "tmp" / ".quickstarted-sandbox.sb"
         self._profile_path.write_text(self.profile, encoding="utf-8")
 
     def argv(self, command: str) -> list[str]:

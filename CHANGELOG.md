@@ -43,6 +43,18 @@ journey.
   stays out on purpose: projects serve READMEs from it, and a documentation host
   the shell can reach is an attribution hole.
 
+### Fixed
+
+- **The workspace starts empty.** `HOME` and `TMPDIR` used to point inside the
+  workspace, so `.npm`, `.cache` and `tmp/` were there before the agent ran a
+  single command, and every scaffolding tool that requires an empty directory
+  refused: `npm create vite@latest .`, `django-admin startproject .`,
+  `cargo new`. An agent had to notice and work around a mess the harness made,
+  which is measurement noise dressed up as a documentation problem. Under
+  `docker` both now live on the container's own filesystem; under `seatbelt` and
+  `local` they are siblings of the workspace inside the same sandbox, so the
+  kernel policy is unchanged.
+
 ## [0.2.0] - 2026-07-26
 
 The v0.1 harness could be talked out of its own guarantees: the docs allowlist

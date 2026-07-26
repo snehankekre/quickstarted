@@ -26,11 +26,30 @@ def test_env_is_scrubbed():
             assert "QUICKSTARTED_TEST_SECRET" not in result.output
             # HOME points into the sandbox, not the real home
             home = sb.run("echo $HOME", timeout=10)
-            assert str(sb.root) in home.output
+            assert str(sb.base) in home.output
+            assert home.output.strip() != str(Path.home())
         finally:
             sb.cleanup()
     finally:
         del os.environ["QUICKSTARTED_TEST_SECRET"]
+
+
+def test_workspace_starts_empty():
+    """Scaffolders refuse a non-empty directory, so HOME must live elsewhere.
+
+    `npm create vite@latest .` and `django-admin startproject .` both bail out
+    if anything is already there, dotfiles included. A HOME inside the workspace
+    used to seed it with .npm and .cache before the agent ran one command.
+    """
+    sb = Sandbox()
+    try:
+        listing = sb.run("ls -A | wc -l", timeout=10)
+        assert listing.output.strip() == "0", listing.output
+        # And HOME is still writable, wherever it went.
+        assert sb.run("touch $HOME/probe && test -f $HOME/probe", timeout=10).exit_code == 0
+        assert sb.run("ls -A | wc -l", timeout=10).output.strip() == "0"
+    finally:
+        sb.cleanup()
 
 
 def test_timeout():

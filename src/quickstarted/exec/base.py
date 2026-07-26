@@ -66,16 +66,25 @@ class ProcessExecutor:
     enforced = False
 
     def __init__(self, keep: bool = False, proxy_url: str | None = None):
-        self.root = Path(tempfile.mkdtemp(prefix="quickstarted-"))
-        (self.root / "tmp").mkdir()
+        # The workspace and the agent's HOME are siblings, not the same
+        # directory. Scaffolding tools (`npm create`, `django-admin startproject
+        # .`, `cargo new`) refuse to run in a directory that is not empty, and a
+        # HOME inside the workspace fills it with dotfiles before the agent has
+        # typed anything. That failure has nothing to do with the docs.
+        self.base = Path(tempfile.mkdtemp(prefix="quickstarted-"))
+        self.root = self.base / "workspace"
+        self.root.mkdir()
+        self.support = self.base / "support"
+        (self.support / "home").mkdir(parents=True)
+        (self.support / "tmp").mkdir()
         self.keep = keep
         self.proxy_url = proxy_url
 
     def env(self) -> dict[str, str]:
         env = {
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-            "HOME": str(self.root),
-            "TMPDIR": str(self.root / "tmp"),
+            "HOME": str(self.support / "home"),
+            "TMPDIR": str(self.support / "tmp"),
             "LANG": os.environ.get("LANG", "en_US.UTF-8"),
             "LC_ALL": os.environ.get("LC_ALL", os.environ.get("LANG", "en_US.UTF-8")),
             "TERM": "dumb",
@@ -128,4 +137,4 @@ class ProcessExecutor:
 
     def cleanup(self) -> None:
         if not self.keep:
-            shutil.rmtree(self.root, ignore_errors=True)
+            shutil.rmtree(self.base, ignore_errors=True)
