@@ -1,0 +1,77 @@
+name: prisma-quickstart
+goal: >
+  Using Prisma with a SQLite database, set up a project in this workspace with a
+  model called User that has an id, an email, and a name. Apply it to the
+  database, then write and run a script that creates one user with the email
+  "ada@example.com" and the name "Ada", reads all users back out of the database,
+  and writes them to out.json as a JSON array.
+image: node:22-slim
+docs:
+  entrypoint: https://www.prisma.io/docs/getting-started/quickstart-sqlite
+  allow:
+    - prisma.io
+network:
+  allow:
+    # Prisma downloads its query engine binaries at generate time. Without this
+    # the run fails on a download, which says nothing about the documentation.
+    - binaries.prisma.sh
+success:
+  script: |
+    set -e
+    test -f out.json
+    # Assert the data that came back out of the database, not the code that put
+    # it there.
+    node -e '
+      const rows = JSON.parse(require("fs").readFileSync("out.json", "utf8"));
+      if (!Array.isArray(rows)) throw new Error("out.json is not an array");
+      const ada = rows.find(r => r.email === "ada@example.com");
+      if (!ada) throw new Error("no ada@example.com in " + JSON.stringify(rows));
+      if (ada.name !== "Ada") throw new Error("wrong name: " + ada.name);
+      if (ada.id === undefined) throw new Error("no id on the row");
+    '
+    # And that it really was Prisma against SQLite.
+    test -n "$(find . -path ./node_modules -prune -o -name "schema.prisma" -print | head -1)"
+    test -n "$(find . -path ./node_modules -prune -o -name "*.db" -print | head -1)"
+budgets:
+  max_turns: 35
+  max_seconds: 900
+replay:
+  # Verified against Prisma 7.9. v7 is a redesign: the datasource URL moved to
+  # prisma.config.ts, the generated client is TypeScript, and a driver adapter
+  # is mandatory. Any of those three can strand a reader.
+  - npm init -y --silent
+  - npm install --silent prisma @prisma/client tsx @prisma/adapter-better-sqlite3
+  - npx prisma init --datasource-provider sqlite
+  - |
+    cat >> prisma/schema.prisma <<'PRISMA'
+
+    model User {
+      id    Int     @id @default(autoincrement())
+      email String  @unique
+      name  String?
+    }
+    PRISMA
+  - npx prisma migrate dev --name init
+  - npx prisma generate
+  - |
+    cat > script.ts <<'TS'
+    import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+    import { PrismaClient } from "./generated/prisma/client.js";
+    import { writeFileSync } from "node:fs";
+
+    const adapter = new PrismaBetterSqlite3({ url: "file:./dev.db" });
+    const prisma = new PrismaClient({ adapter });
+
+    async function main() {
+      await prisma.user.create({
+        data: { email: "ada@example.com", name: "Ada" },
+      });
+      writeFileSync(
+        "out.json",
+        JSON.stringify(await prisma.user.findMany(), null, 2),
+      );
+    }
+
+    main().finally(() => prisma.$disconnect());
+    TS
+  - npx tsx script.ts

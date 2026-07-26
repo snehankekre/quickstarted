@@ -1,0 +1,45 @@
+name: tailwind-quickstart
+goal: >
+  Set up Tailwind CSS in this workspace. Write an index.html containing an h1
+  that uses the Tailwind utility classes text-3xl and font-bold, then build the
+  CSS that index.html needs into a file called out.css. Do not start a watcher
+  and leave it running.
+image: node:22-slim
+docs:
+  entrypoint: https://tailwindcss.com/docs/installation
+  allow:
+    - tailwindcss.com
+success:
+  script: |
+    set -e
+    test -f index.html
+    test -f out.css
+    grep -q "text-3xl" index.html
+    grep -q "font-bold" index.html
+    # Tailwind only emits a utility it saw used, so finding these rules proves
+    # the build actually scanned index.html.
+    grep -q "font-weight" out.css
+    node -e '
+      const css = require("fs").readFileSync("out.css", "utf8");
+      for (const cls of ["text-3xl", "font-bold"]) {
+        if (!css.includes("." + cls)) {
+          throw new Error("out.css has no rule for ." + cls);
+        }
+      }
+    '
+budgets:
+  max_turns: 25
+  max_seconds: 600
+replay:
+  - npm init -y --silent
+  - npm install --silent tailwindcss @tailwindcss/cli
+  - |
+    cat > index.html <<'HTML'
+    <!doctype html>
+    <html>
+      <head><link href="./out.css" rel="stylesheet" /></head>
+      <body><h1 class="text-3xl font-bold">Hello</h1></body>
+    </html>
+    HTML
+  - printf '@import "tailwindcss";\n' > src.css
+  - npx @tailwindcss/cli -i src.css -o out.css

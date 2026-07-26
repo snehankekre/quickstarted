@@ -34,6 +34,14 @@ journey.
 - `validate` warns when a success script calls `npm`, `npx`, `node`, `pnpm`,
   `yarn`, or `bun` while no image is set, since that check would fail for a
   reason unrelated to the documentation.
+- **Six more tasks**, doubling the set to 14 and covering both runtimes: `uv`,
+  `django`, `prefect` (Python) and `vite`, `prisma`, `tailwind` (Node).
+- Four hosts added to the default network allowlist:
+  `release-assets.githubusercontent.com`, where npm packages with prebuilt
+  native binaries fetch during install, and the Debian and Ubuntu mirrors, so a
+  quickstart that opens with `apt-get install` works. `raw.githubusercontent.com`
+  stays out on purpose: projects serve READMEs from it, and a documentation host
+  the shell can reach is an attribution hole.
 
 ## [0.2.0] - 2026-07-26
 

@@ -1,0 +1,77 @@
+name: django-quickstart
+goal: >
+  Following the Django tutorial, install Django into the virtualenv in this
+  workspace, create a Django project called mysite, and inside it create an app
+  called polls. Give the polls app a view at the URL path "polls/" that returns
+  the text "Hello, world." Do not leave a development server running.
+docs:
+  entrypoint: https://docs.djangoproject.com/en/stable/intro/tutorial01/
+  allow:
+    - docs.djangoproject.com
+    - djangoproject.com
+setup:
+  - python3 -m venv .venv
+success:
+  script: |
+    set -e
+    WS="$PWD"
+    # The tutorial's own layout puts manage.py one level down, but
+    # `startproject mysite .` is also documented. Find it rather than assuming.
+    manage=$(find . -name manage.py -not -path "./.venv/*" | head -1)
+    test -n "$manage"
+    root=$(dirname "$manage")
+    test -d "$root/polls"
+    cd "$root"
+    "$WS/.venv/bin/python" manage.py check
+    # Ask the view, through Django's own test client, so no server is needed.
+    "$WS/.venv/bin/python" - <<'PY'
+    import os, sys, django
+    from pathlib import Path
+    sys.path.insert(0, os.getcwd())
+    settings = next(p for p in Path(".").glob("*/settings.py"))
+    os.environ["DJANGO_SETTINGS_MODULE"] = f"{settings.parent.name}.settings"
+    django.setup()
+    # Outside a test runner ALLOWED_HOSTS is enforced, and the test client's
+    # SERVER_NAME is 'testserver', so without this every request is a 400.
+    from django.conf import settings as conf
+    conf.ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
+    from django.test import Client
+    response = Client().get("/polls/")
+    body = response.content.decode()
+    assert response.status_code == 200, (response.status_code, body[:400])
+    assert "Hello, world." in body, body[:400]
+    PY
+budgets:
+  max_turns: 30
+  max_seconds: 720
+replay:
+  - .venv/bin/pip install --quiet django
+  - .venv/bin/django-admin startproject mysite
+  - cd mysite && ../.venv/bin/python manage.py startapp polls
+  - |
+    cat > mysite/polls/views.py <<'PY'
+    from django.http import HttpResponse
+
+
+    def index(request):
+        return HttpResponse("Hello, world.")
+    PY
+  - |
+    cat > mysite/polls/urls.py <<'PY'
+    from django.urls import path
+
+    from . import views
+
+    urlpatterns = [path("", views.index, name="index")]
+    PY
+  - |
+    cat > mysite/mysite/urls.py <<'PY'
+    from django.contrib import admin
+    from django.urls import include, path
+
+    urlpatterns = [
+        path("polls/", include("polls.urls")),
+        path("admin/", admin.site.urls),
+    ]
+    PY
+  - cd mysite && ../.venv/bin/python manage.py check

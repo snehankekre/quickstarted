@@ -1,0 +1,42 @@
+name: uv-quickstart
+goal: >
+  Using uv, turn this empty workspace into a Python project, add httpx as a
+  dependency of that project, and write main.py which imports httpx and prints
+  the single line "ok". Run main.py through uv. uv is not installed yet; install
+  it first, from PyPI: this sandbox cannot reach the standalone installer script.
+  Do not create a virtualenv by hand.
+docs:
+  entrypoint: https://docs.astral.sh/uv/getting-started/
+  allow:
+    - docs.astral.sh
+# `astral.sh` is deliberately absent from network.allow. Allowing it would also
+# allow `docs.astral.sh` (the match is by suffix), and the shell being able to
+# reach a docs host is exactly the hole that makes page attribution unprovable.
+# So the installer script is out of reach and the goal says to use PyPI.
+success:
+  script: |
+    set -e
+    test -f pyproject.toml
+    test -f uv.lock
+    test -f main.py
+    # httpx has to be a declared dependency of the project, not just installed
+    # into some environment the agent made.
+    grep -q httpx pyproject.toml
+    # And the project environment uv built has to actually import it.
+    .venv/bin/python -c "import httpx"
+    .venv/bin/python main.py | grep -qx ok
+budgets:
+  max_turns: 25
+  max_seconds: 600
+replay:
+  - python3 -m venv .tools
+  - .tools/bin/pip install --quiet uv
+  - .tools/bin/uv init .
+  - .tools/bin/uv add httpx
+  - |
+    cat > main.py <<'PY'
+    import httpx  # noqa: F401
+
+    print("ok")
+    PY
+  - .tools/bin/uv run main.py

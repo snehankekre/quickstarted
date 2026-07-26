@@ -34,6 +34,19 @@ DEFAULT_NETWORK_ALLOW = (
     "github.com",
     "codeload.github.com",
     "objects.githubusercontent.com",
+    # Where GitHub now serves release assets. Any npm package shipping a
+    # prebuilt native binary (better-sqlite3, esbuild, sharp) fetches from here
+    # during install, and without it the run dies in setup for a reason that
+    # says nothing about the documentation.
+    "release-assets.githubusercontent.com",
+    # Debian and Ubuntu mirrors, because a quickstart is allowed to open with
+    # `apt-get install`. Deliberately not raw.githubusercontent.com: projects
+    # serve their README from there, and a docs host the shell can reach is an
+    # attribution hole.
+    "deb.debian.org",
+    "security.debian.org",
+    "archive.ubuntu.com",
+    "security.ubuntu.com",
     "crates.io",
     "static.crates.io",
     "proxy.golang.org",

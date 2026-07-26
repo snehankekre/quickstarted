@@ -91,7 +91,15 @@ reach them, which is what keeps the record of pages read complete.
 
 Defaults: `pypi.org`, `files.pythonhosted.org`, `registry.npmjs.org`,
 `github.com`, `codeload.github.com`, `objects.githubusercontent.com`,
-`crates.io`, `static.crates.io`, `proxy.golang.org`.
+`release-assets.githubusercontent.com`, `crates.io`, `static.crates.io`,
+`proxy.golang.org`, `deb.debian.org`, `security.debian.org`,
+`archive.ubuntu.com`, `security.ubuntu.com`.
+
+`release-assets.githubusercontent.com` is there because npm packages that ship
+a prebuilt native binary fetch it during install. The Debian and Ubuntu mirrors
+are there because a quickstart is allowed to open with `apt-get install`.
+`raw.githubusercontent.com` is deliberately absent: projects serve their README
+from it, and a documentation host the shell can reach is an attribution hole.
 
 A host named here explicitly wins over the documentation rule, so a registry
 that also serves documentation stays installable. The report notes the
