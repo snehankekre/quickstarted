@@ -73,6 +73,41 @@ does what you meant.
 [st]: https://github.com/snehankekre/quickstarted/blob/main/tasks/streamlit-quickstart.yaml
 [fa]: https://github.com/snehankekre/quickstarted/blob/main/tasks/fastapi-quickstart.yaml
 
+## Make a failing check say what it saw
+
+The exit code decides the verdict. The output is the bug report, and they are
+separate jobs. `test -f out.csv` needs no output because the message is obvious
+from the check itself. A check that starts a server and polls it needs to say
+what happened, or a failure arrives with an exit code and nothing else.
+
+This bit us. A benchmark run reported `docs_gap` on the FastAPI task with exit
+code 1 and an empty message, which is unactionable: no way to tell a missing
+route from a server that never booted. The cause was `set -e` aborting the
+script at the failing command, before the lines meant to report the problem
+could run.
+
+```yaml
+success:
+  script: |
+    set -e
+    .venv/bin/python -m uvicorn app:app --port 8611 > server.log 2>&1 &
+    pid=$!
+    status=0
+    # `if !` so a failure does not trip `set -e` and skip the diagnostics.
+    if ! .venv/bin/python poll.py; then
+      status=1
+      echo "--- server.log (last 20 lines) ---"
+      tail -20 server.log 2>/dev/null || echo "(no server.log; server never started)"
+    fi
+    kill "$pid" 2>/dev/null || true
+    exit $status
+```
+
+Inside the polling loop, keep the last error rather than swallowing every
+exception with `continue`, and print it once the loop gives up. "Connection
+refused" and "HTTP 200 with the wrong body" are different bugs in your
+documentation, and a bare exit code cannot tell them apart.
+
 ## Assert the data
 
 Check the outcome the documentation promises. Do not check how the agent got
