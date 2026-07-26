@@ -1,0 +1,22 @@
+name: bottomtime-quickstart
+goal: >
+  Install the bottomtime package from PyPI into a virtualenv in this workspace
+  and show that the bottomtime CLI is installed and responds to --help,
+  listing its subcommands.
+docs:
+  entrypoint: https://raw.githubusercontent.com/snehankekre/bottomtime/main/README.md
+  allow:
+    - raw.githubusercontent.com
+setup:
+  - python3 -m venv .venv
+success:
+  script: |
+    set -e
+    .venv/bin/bottomtime --help > help.txt 2>&1
+    grep -q ingest help.txt
+budgets:
+  max_turns: 15
+  max_seconds: 600
+replay:
+  - .venv/bin/pip install --quiet bottomtime
+  - .venv/bin/bottomtime --help

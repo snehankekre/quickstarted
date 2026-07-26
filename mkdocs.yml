@@ -1,0 +1,82 @@
+site_name: quickstarted
+site_description: Test whether an AI agent can complete your quickstart by following your docs.
+site_url: https://snehankekre.github.io/quickstarted/
+repo_url: https://github.com/snehankekre/quickstarted
+repo_name: snehankekre/quickstarted
+edit_uri: edit/main/docs/
+copyright: MIT licensed
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+# Every page is also served as raw Markdown, and llms.txt is generated from the
+# nav below. A tool that tests documentation for agents should be legible to
+# one.
+hooks:
+  - docs_hooks.py
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Install: getting-started/install.md
+      - Your first run: getting-started/first-run.md
+      - Agent mode: getting-started/agent-mode.md
+  - Guides:
+      - Writing journeys: guides/writing-journeys.md
+      - Sandboxing: guides/sandboxing.md
+      - Pass rates: guides/pass-rates.md
+      - Measuring llms.txt: guides/affordances.md
+      - Running in CI: guides/ci.md
+      - Cost and budgets: guides/cost.md
+  - Reference:
+      - CLI: reference/cli.md
+      - Journey schema: reference/journey-schema.md
+      - Results schema: reference/results.md
+      - Trace events: reference/trace.md
+      - Environment variables: reference/environment.md
+  - Why it works this way:
+      - Deterministic scoring: explanation/scoring.md
+      - The egress proxy: explanation/proxy.md
+      - Compared to other tools: explanation/comparison.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/snehankekre/quickstarted

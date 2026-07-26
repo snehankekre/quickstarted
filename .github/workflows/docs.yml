@@ -1,0 +1,74 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[docs]"
+      - name: Build site
+        run: mkdocs build --strict
+      - name: Check the agent-facing outputs exist
+        run: |
+          test -s site/llms.txt
+          test -s site/index.md
+          test -s site/reference/cli.md
+          grep -q "getting-started/first-run.md" site/llms.txt
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  self-test:
+    # Once the site is live, the tool tests its own quickstart the same way it
+    # would test anyone else's. Replay mode, so this needs no API key.
+    if: github.ref == 'refs/heads/main'
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e "."
+      # The journey installs quickstarted from PyPI, because that is what the
+      # docs tell a reader to do. Until the first release is published there is
+      # nothing to install, so this job reports without blocking. Remove
+      # continue-on-error once v0.2.0 is on PyPI.
+      - continue-on-error: true
+        run: |
+          quickstarted run journeys/quickstarted-quickstart.yaml \
+            --agent replay --backend docker --out results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: self-test-results
+          path: results/

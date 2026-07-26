@@ -1,0 +1,45 @@
+name: duckdb-quickstart
+goal: >
+  Using DuckDB from Python, create a persistent database file named shop.db in
+  this workspace containing a table "orders" with columns id (integer) and
+  total (double), insert the three rows (1, 10.5), (2, 20.0) and (3, 5.25),
+  then query the sum of total and write just that number to total.txt. Put
+  your code in script.py and run it.
+docs:
+  entrypoint: https://duckdb.org/docs/stable/clients/python/overview
+  allow:
+    - duckdb.org
+setup:
+  - python3 -m venv .venv
+success:
+  script: |
+    set -e
+    test -f script.py
+    test -f shop.db
+    grep -Eq '^35\.75$|^35\.8$|^35\.750*$' total.txt
+    # The database must really hold the rows, not just the answer file.
+    .venv/bin/python - <<'PY'
+    import duckdb
+    con = duckdb.connect("shop.db", read_only=True)
+    rows = con.execute("select id, total from orders order by id").fetchall()
+    assert rows == [(1, 10.5), (2, 20.0), (3, 5.25)], rows
+    PY
+budgets:
+  max_turns: 20
+  max_seconds: 420
+replay:
+  - .venv/bin/pip install --quiet duckdb
+  - |
+    cat > script.py <<'PY'
+    import duckdb
+
+    con = duckdb.connect("shop.db")
+    con.execute("create or replace table orders (id integer, total double)")
+    con.executemany("insert into orders values (?, ?)",
+                    [(1, 10.5), (2, 20.0), (3, 5.25)])
+    total = con.execute("select sum(total) from orders").fetchone()[0]
+    with open("total.txt", "w") as fh:
+        fh.write(f"{total}\n")
+    con.close()
+    PY
+  - .venv/bin/python script.py

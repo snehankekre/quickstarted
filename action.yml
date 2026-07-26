@@ -1,0 +1,81 @@
+name: quickstarted
+description: >
+  Run quickstarted journeys against your documentation. Replay mode is free and
+  needs no API key; agent mode needs QUICKSTARTED_ANTHROPIC_API_KEY (or
+  ANTHROPIC_API_KEY) in env.
+branding:
+  icon: check-circle
+  color: green
+
+inputs:
+  journeys:
+    description: Space-separated journey files or a glob (e.g. journeys/*.yaml)
+    required: true
+  agent:
+    description: replay, claude, openai, or gemini
+    required: false
+    default: replay
+  model:
+    description: Model override for LLM agents (required for openai and gemini)
+    required: false
+    default: ""
+  repeat:
+    description: Attempts per journey; more than one reports a pass rate
+    required: false
+    default: "1"
+  workers:
+    description: Attempts to run in parallel
+    required: false
+    default: "1"
+  backend:
+    description: Execution backend; docker is the enforced one on Linux runners
+    required: false
+    default: docker
+  affordances:
+    description: "all (default) or none, to withhold llms.txt and .md variants"
+    required: false
+    default: all
+  python-version:
+    description: Python version to run with
+    required: false
+    default: "3.12"
+  out:
+    description: Directory for traces and reports
+    required: false
+    default: quickstarted-results
+  junit:
+    description: Path for a JUnit XML report (empty to skip)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install quickstarted
+      shell: bash
+      run: |
+        case "${{ inputs.agent }}" in
+          claude) pip install "quickstarted[claude]" ;;
+          openai) pip install "quickstarted[openai]" ;;
+          gemini) pip install "quickstarted[gemini]" ;;
+          *)      pip install quickstarted ;;
+        esac
+    - name: Report what this runner can enforce
+      shell: bash
+      run: quickstarted doctor
+    - name: Run journeys
+      shell: bash
+      run: |
+        args=(run ${{ inputs.journeys }}
+          --agent "${{ inputs.agent }}"
+          --backend "${{ inputs.backend }}"
+          --repeat "${{ inputs.repeat }}"
+          --workers "${{ inputs.workers }}"
+          --affordances "${{ inputs.affordances }}"
+          --out "${{ inputs.out }}")
+        if [ -n "${{ inputs.model }}" ]; then args+=(--model "${{ inputs.model }}"); fi
+        if [ -n "${{ inputs.junit }}" ]; then args+=(--junit "${{ inputs.junit }}"); fi
+        quickstarted "${args[@]}"

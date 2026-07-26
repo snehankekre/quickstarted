@@ -1,0 +1,24 @@
+"""quickstarted: test whether an AI agent can complete your quickstart.
+
+Journeys (YAML) state a goal, a docs entrypoint, and a machine-checkable
+success assertion. The harness runs an agent in a sandbox whose only docs
+access is a recorded, allowlisted fetch tool, then scores the run with the
+assertion script. See README.md.
+"""
+
+from ._version import __version__
+from .journey import Budgets, Journey, JourneyError, load_journey
+from .run import RunResult, ScoreResult, run_journey
+from .trace import Trace
+
+__all__ = [
+    "Budgets",
+    "Journey",
+    "JourneyError",
+    "RunResult",
+    "ScoreResult",
+    "Trace",
+    "__version__",
+    "load_journey",
+    "run_journey",
+]

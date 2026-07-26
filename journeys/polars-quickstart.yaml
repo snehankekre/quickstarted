@@ -1,0 +1,40 @@
+name: polars-quickstart
+goal: >
+  Using Polars, read the CSV file people.csv that already exists in this
+  workspace, keep only the rows where age is greater than 30, sort the result
+  by age descending, and write it to out.csv with the same column names. Put
+  your code in script.py and run it.
+docs:
+  entrypoint: https://docs.pola.rs/user-guide/getting-started/
+  allow:
+    - docs.pola.rs
+setup:
+  - python3 -m venv .venv
+  - printf 'name,age\nada,36\ngrace,45\nalan,28\nedsger,31\n' > people.csv
+success:
+  script: |
+    set -e
+    test -f script.py
+    test -f out.csv
+    # Assert the data, not the code: any correct route to the answer passes.
+    .venv/bin/python - <<'PY'
+    import csv
+    with open("out.csv") as fh:
+        rows = list(csv.DictReader(fh))
+    assert [r["name"] for r in rows] == ["grace", "ada", "edsger"], rows
+    assert [int(r["age"]) for r in rows] == [45, 36, 31], rows
+    PY
+budgets:
+  max_turns: 20
+  max_seconds: 420
+replay:
+  - .venv/bin/pip install --quiet polars
+  - |
+    cat > script.py <<'PY'
+    import polars as pl
+
+    df = pl.read_csv("people.csv")
+    out = df.filter(pl.col("age") > 30).sort("age", descending=True)
+    out.write_csv("out.csv")
+    PY
+  - .venv/bin/python script.py

@@ -1,0 +1,44 @@
+name: quickstarted-quickstart
+goal: >
+  Install the quickstarted package from PyPI into the virtualenv in this
+  workspace, then write a journey file at mine.yaml that targets the
+  documentation site https://example.com/docs with the goal of creating a file
+  called hello.txt, using a success script that checks the file exists. Confirm
+  your file is valid using the tool itself, and save the tool's validation
+  output to validated.txt.
+docs:
+  entrypoint: https://snehankekre.github.io/quickstarted/getting-started/first-run.md
+  allow:
+    - snehankekre.github.io
+setup:
+  - python3 -m venv .venv
+success:
+  script: |
+    set -e
+    test -f mine.yaml
+    test -f validated.txt
+    grep -q "^ok" validated.txt
+    # The journey the agent wrote must be one the tool actually accepts, and
+    # must say what the goal asked for.
+    .venv/bin/quickstarted validate mine.yaml
+    .venv/bin/python - <<'PY'
+    import yaml
+    spec = yaml.safe_load(open("mine.yaml"))
+    assert spec["docs"]["entrypoint"].startswith("https://example.com/docs"), spec
+    assert "hello.txt" in spec["success"]["script"], spec
+    PY
+budgets:
+  max_turns: 20
+  max_seconds: 420
+replay:
+  - .venv/bin/pip install --quiet quickstarted
+  - |
+    cat > mine.yaml <<'YAML'
+    name: hello
+    goal: Create a file called hello.txt in the workspace.
+    docs:
+      entrypoint: https://example.com/docs
+    success:
+      script: test -f hello.txt
+    YAML
+  - .venv/bin/quickstarted validate mine.yaml > validated.txt

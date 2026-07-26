@@ -1,0 +1,26 @@
+name: pnf-quickstart
+goal: >
+  Install the pnf package from PyPI into a virtualenv in this workspace and
+  demonstrate, with a runnable Python snippet, that you can import pnf and
+  identify which public function decodes a Shearwater PNF blob. Write that
+  snippet to demo.py and run it.
+docs:
+  entrypoint: https://raw.githubusercontent.com/snehankekre/pnf/main/README.md
+  allow:
+    - raw.githubusercontent.com
+setup:
+  - python3 -m venv .venv
+success:
+  script: |
+    set -e
+    test -f demo.py
+    .venv/bin/python -c "import pnf; assert callable(pnf.decode)"
+    .venv/bin/python demo.py
+budgets:
+  max_turns: 15
+  max_seconds: 600
+replay:
+  - .venv/bin/pip install --quiet pnf
+  - .venv/bin/python -c "import pnf; assert callable(pnf.decode)"
+  - printf 'import pnf\nprint(pnf.decode.__name__)\n' > demo.py
+  - .venv/bin/python demo.py
