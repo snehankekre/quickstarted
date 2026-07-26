@@ -42,6 +42,8 @@ markdown_extensions:
   - admonition
   - attr_list
   - def_list
+  # Required by the `markdown` attribute on the grid cards in index.md.
+  - md_in_html
   - tables
   - toc:
       permalink: true

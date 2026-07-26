@@ -27,18 +27,38 @@ and the one it was on when things went wrong is a fact rather than a guess.
 
 <div class="grid cards" markdown>
 
-- **[Install](getting-started/install.md)**
-  One dependency plus the SDK for whichever model you point at your docs.
+-   __Install__
 
-- **[Your first run](getting-started/first-run.md)**
-  Run an agent against real documentation in about five minutes.
+    ---
 
-- **[Writing journeys](guides/writing-journeys.md)**
-  Success checks you can copy, and the rules that keep a journey from measuring
-  luck.
+    One dependency plus the SDK for whichever model you point at your docs.
 
-- **[Agent mode in depth](getting-started/agent-mode.md)**
-  Choosing models, bounding cost, reading the trace.
+    [Install](getting-started/install.md)
+
+-   __Your first run__
+
+    ---
+
+    Run an agent against real documentation in about five minutes.
+
+    [First run](getting-started/first-run.md)
+
+-   __Writing journeys__
+
+    ---
+
+    Success checks you can copy, and the rules that keep a journey from
+    measuring luck.
+
+    [Writing journeys](guides/writing-journeys.md)
+
+-   __Agent mode in depth__
+
+    ---
+
+    Choosing models, bounding cost, reading the trace.
+
+    [Agent mode](getting-started/agent-mode.md)
 
 </div>
 
