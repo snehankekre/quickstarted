@@ -28,16 +28,17 @@ and the one it was on when things went wrong is a fact rather than a guess.
 <div class="grid cards" markdown>
 
 - **[Install](getting-started/install.md)**
-  One dependency, no API key needed for replay mode.
+  One dependency plus the SDK for whichever model you point at your docs.
 
 - **[Your first run](getting-started/first-run.md)**
-  Write a journey and run it against real documentation in about five minutes.
-
-- **[Agent mode](getting-started/agent-mode.md)**
-  Put a model in the loop and see where your docs run out.
+  Run an agent against real documentation in about five minutes.
 
 - **[Writing journeys](guides/writing-journeys.md)**
-  The rules that separate a useful journey from a flaky one.
+  Success checks you can copy, and the rules that keep a journey from measuring
+  luck.
+
+- **[Agent mode in depth](getting-started/agent-mode.md)**
+  Choosing models, bounding cost, reading the trace.
 
 </div>
 
@@ -47,8 +48,11 @@ Three decisions do most of the work, and each has a page explaining why.
 
 **A script decides, never a model.** The success script runs after the agent
 stops, in the same workspace, and its exit code is the verdict. An agent that
-reports triumph over a missing file still fails.
-[How scoring works](explanation/scoring.md)
+reports triumph over a missing file still fails. Most of these scripts are two
+or three lines: the file exists, the import works, the output contains the
+number your page promised.
+[How scoring works](explanation/scoring.md) and
+[checks you can copy](guides/writing-journeys.md#success-checks-you-can-copy)
 
 **The sandbox is a boundary.** Documentation hosts are unreachable from the
 shell, so `read_docs` is the only route to a page and every read is recorded.

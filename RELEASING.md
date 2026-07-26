@@ -1,18 +1,5 @@
 # Releasing
 
-## Once, before the first release
-
-1. Create the PyPI project by uploading manually, or configure trusted
-   publishing first at <https://pypi.org/manage/account/publishing/>:
-   - PyPI project name: `quickstarted`
-   - Owner: `snehankekre`
-   - Repository: `quickstarted`
-   - Workflow: `release.yml`
-   - Environment: `pypi`
-2. In the GitHub repository settings, create an environment named `pypi`.
-3. Enable Pages: Settings, Pages, Source "GitHub Actions". The docs workflow
-   deploys on every push to `main`.
-
 ## Every release
 
 1. Update `CHANGELOG.md`: move items under a new version heading with a date.

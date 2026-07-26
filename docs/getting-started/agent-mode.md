@@ -1,26 +1,9 @@
-# Agent mode
+# Agent mode in depth
 
-> Give a model your goal and your docs, and nothing else.
+> Choosing a model, bounding the cost, and reading what a run left behind.
 
-Replay proves the documented commands work. It cannot tell you whether a reader
-could have found them, understood the order, or guessed the prerequisite you
-left out. Agent mode can.
-
-```bash
-pip install "quickstarted[claude]"
-export QUICKSTARTED_ANTHROPIC_API_KEY=sk-ant-...
-quickstarted run journeys/httpx.yaml --agent claude
-```
-
-```
-[PASS] httpx-quickstart (claude:claude-opus-5)
-  classification: passed
-  stop reason: completed
-  turns: 5, duration: 23.9s
-  backend: docker
-  tokens: 10 in / 791 out, cache 6249 written / 17561 read
-  docs pages read: 1
-```
+[Your first run](first-run.md) is a working agent run. This page covers what
+you need once you are running more than one.
 
 ## What the agent can and cannot do
 
@@ -58,24 +41,11 @@ Results record the model the API actually served, which is often more specific
 than what you asked for. An alias can start resolving to a new build without
 telling you, and a pass-rate trend across a silent change means nothing.
 
-## Reading a failure
+## What a run leaves behind
 
-```
-[FAIL] duckdb-quickstart (claude:claude-opus-5)
-  classification: docs_gap
-  turns: 14, duration: 88.1s
-  backend: docker
-  success check exit code: 1 (AssertionError: no table named orders)
-  last docs page read before failure: https://duckdb.org/docs/stable/clients/python/overview
-  docs pages read: 9
-```
-
-Start at the last page. The agent read nine pages, got as far as that one, and
-then produced a database without the table your script expected. Either the
-page is missing a step, or the step after it is somewhere the agent never
-found.
-
-`--out results/` writes the full trace and a Markdown report:
+The summary names the last page read before a failure, which is where to start
+reading. Everything else is in the artifacts. `--out results/` writes the full
+trace and a Markdown report:
 
 ```bash
 quickstarted run journeys/httpx.yaml --agent claude --out results/

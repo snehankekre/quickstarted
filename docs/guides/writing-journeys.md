@@ -3,6 +3,76 @@
 > The rules that separate a journey which measures your docs from one that
 > measures luck.
 
+## Success checks you can copy
+
+The success script is the only thing standing between a report and a model's
+opinion of itself, which is why there is no way to skip it. It is usually two
+or three lines. You are asserting what your tutorial already promises, so start
+by asking what you would type in a terminal to check that the tutorial worked.
+
+```yaml
+# The file the tutorial told the reader to create
+success:
+  script: test -f app.py
+```
+
+```yaml
+# The package installed and imports
+success:
+  script: .venv/bin/python -c "import streamlit"
+```
+
+```yaml
+# The command exists and runs
+success:
+  script: .venv/bin/mytool --version
+```
+
+```yaml
+# The output contains what the page said it would
+success:
+  script: .venv/bin/python fetch.py | grep -q 200
+```
+
+```yaml
+# Several of the above, stopping at the first failure
+success:
+  script: |
+    set -e
+    test -f fetch.py
+    .venv/bin/python -c "import httpx"
+    .venv/bin/python fetch.py | grep -q 200
+```
+
+`set -e` is what makes a multi-line script stop at the first failing line. It
+is the only piece of shell syntax you need.
+
+When a check is easier to express in Python than in shell, write it in Python.
+Nothing prefers bash:
+
+```yaml
+success:
+  script: |
+    set -e
+    .venv/bin/python - <<'PY'
+    import csv
+    rows = list(csv.DictReader(open("out.csv")))
+    assert [r["name"] for r in rows] == ["grace", "ada", "edsger"], rows
+    PY
+```
+
+The long scripts in this repo, [streamlit][st] and [fastapi][fa], are long
+because they boot a server and poll it. That is the strictest end of the range
+and it is optional. A weaker check that you trust beats a strict one you cannot
+debug, and you can tighten it later.
+
+Develop a check by running it yourself. `--keep-sandbox` leaves the workspace in
+place after a run, so you can `cd` into it and run the script by hand until it
+does what you meant.
+
+[st]: https://github.com/snehankekre/quickstarted/blob/main/journeys/streamlit-quickstart.yaml
+[fa]: https://github.com/snehankekre/quickstarted/blob/main/journeys/fastapi-quickstart.yaml
+
 ## Assert the data
 
 Check the outcome the documentation promises. Do not check how the agent got

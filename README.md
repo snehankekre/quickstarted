@@ -21,7 +21,7 @@ Full documentation: **https://snehankekre.com/quickstarted/**
 
 ## How it works
 
-You write a journey, in YAML:
+You write a journey, in YAML. This one points at Streamlit's documentation:
 
 ```yaml
 name: streamlit-quickstart
@@ -41,69 +41,16 @@ success:
   script: |
     set -e
     test -f app.py
-    .venv/bin/streamlit --version
-    # The harness decides whether the app really runs: serve it headless on a
-    # fixed port and ask Streamlit's own health endpoint.
-    .venv/bin/streamlit run app.py --server.headless true --server.port 8599 \
-      > server.log 2>&1 &
-    pid=$!
-    .venv/bin/python - <<'PY'
-    import sys, time, urllib.request
-    for _ in range(40):
-        time.sleep(1)
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:8599/_stcore/health", timeout=5) as r:
-                if b"ok" in r.read():
-                    sys.exit(0)
-        except Exception:
-            continue
-    sys.exit(1)
-    PY
-    status=$?
-    kill "$pid" 2>/dev/null || true
-    exit $status
+    .venv/bin/python -c "import streamlit"
 ```
 
-The full file, including the `replay` commands, is
-[journeys/streamlit-quickstart.yaml](journeys/streamlit-quickstart.yaml).
-
-The harness runs an agent in a throwaway workspace with two tools: a sandboxed
-`bash`, and `read_docs`, which is the only way it can read documentation.
-
-The harness enforces that. All shell traffic leaves through a proxy it owns,
-and documentation hosts are unreachable from the shell, so an agent that tries
-`curl https://docs.example.com/...` is refused and the attempt is recorded.
-The pages listed in a report are therefore the pages the agent really read.
-When a run fails, the last page it read is a fact you can act on.
-
-When the agent stops, the harness runs your `success.script` in the workspace.
-Exit code 0 is a pass. Nothing else is. The agent's own claim of success is
-recorded and never trusted; there is no LLM judge anywhere in scoring.
-
-## Two modes
-
-**Replay mode** (free, no LLM, no API key) runs your `replay` commands, the
-literal commands your docs tell users to type, and stops at the first failure.
-Treat it as a precondition. If the documented commands break, no reader stands
-a chance, and agent mode only adds noise.
-
-```
-quickstarted run journeys/streamlit-quickstart.yaml --agent replay
-```
-
-**Agent mode** has an LLM follow your docs to the goal. This catches what
-replay cannot: ambiguity, missing steps, wrong ordering, docs that assume
-context a newcomer does not have.
+Then you run an agent against it:
 
 ```
 pip install "quickstarted[claude]"
 export QUICKSTARTED_ANTHROPIC_API_KEY=...
 quickstarted run journeys/streamlit-quickstart.yaml --agent claude
 ```
-
-Keys are read from `QUICKSTARTED_*` names first so they can sit in your shell
-without other tooling on the same machine picking them up and spending them.
-The vendor-standard names still work as a fallback, which is what CI sets.
 
 ```
 [PASS] streamlit-quickstart (claude:claude-opus-5)
@@ -113,6 +60,59 @@ The vendor-standard names still work as a fallback, which is what CI sets.
   tokens: 12 in / 1150 out, cache 11204 written / 33181 read
   docs pages read: 4
 ```
+
+The agent works in a throwaway workspace with two tools: a sandboxed `bash`,
+and `read_docs`, which is the only way it can read documentation. It gets no
+browser, no search engine, and no network of its own. The system prompt also
+forbids leaning on prior knowledge of the project under test, because a model
+that already knows Streamlit would sail through docs that teach a newcomer
+nothing.
+
+The harness enforces the boundary rather than requesting it. All shell traffic
+leaves through a proxy the harness owns, and documentation hosts are
+unreachable from the shell, so an agent that tries
+`curl https://docs.streamlit.io/...` is refused and the attempt is recorded.
+The pages in a report are therefore the pages the agent really read, and when a
+run fails, the last page it read is a fact rather than a guess.
+
+Keys are read from `QUICKSTARTED_*` names first so they can sit in your shell
+without other tooling on the same machine picking them up and spending them.
+The vendor-standard names still work as a fallback, which is what CI sets.
+
+## The success script is the whole verdict
+
+When the agent stops, the harness runs your `success.script` in the same
+workspace. Exit code 0 is a pass. Nothing else is. The agent's own claim of
+success is recorded and never trusted, and there is no LLM judge anywhere in
+scoring, because a model asked to grade its own work will tell you the app is
+ready when `app.py` does not parse.
+
+Most checks are the size of the one above. You are asserting whatever your
+tutorial already promises the reader: the file exists, the import works, the
+command runs, the output contains the number on the page. If your quickstart
+ends with "you should see `200`", the check is `grep -q 200`.
+
+You can go stricter when it is worth it.
+[journeys/streamlit-quickstart.yaml](journeys/streamlit-quickstart.yaml) boots
+the app headless and polls Streamlit's own health endpoint, which is about
+fifteen more lines and proves the app actually serves. That is a choice, not a
+requirement. Start with the two-line version.
+
+## Replay mode, the free precondition
+
+`--agent replay` runs your `replay` commands, the literal commands your docs
+tell a reader to type, and stops at the first failure. No model, no API key, no
+cost.
+
+```
+quickstarted run journeys/streamlit-quickstart.yaml --agent replay
+```
+
+Treat it as a floor to check on every push. If the documented commands are
+broken, no reader stands a chance and an agent run only adds noise on top of a
+failure you already know about. It cannot tell you whether a reader could have
+*found* those commands, understood their order, or guessed the prerequisite you
+left out. That is what agent mode is for.
 
 ## Pass rates
 
@@ -176,9 +176,9 @@ can enforce. Details in [SECURITY.md](SECURITY.md).
 ## Install
 
 ```
-pip install quickstarted                 # replay mode only
-pip install "quickstarted[claude]"       # + Claude
+pip install "quickstarted[claude]"       # agent mode with Claude
 pip install "quickstarted[all-agents]"   # + OpenAI and Gemini
+pip install quickstarted                 # replay mode only, no SDK
 ```
 
 Python 3.9+. One runtime dependency: PyYAML. Every adapter is a plain tool-use
@@ -187,25 +187,43 @@ cross-model numbers compare like with like.
 
 ## CI
 
+Two jobs, on two schedules. Replay on every push, because it is free:
+
 ```yaml
-- uses: actions/checkout@v4
-- uses: actions/setup-python@v5
-  with:
-    python-version: "3.12"
 - run: pip install quickstarted
-- run: quickstarted run journeys/*.yaml --agent replay --out results --junit junit.xml
-- uses: actions/upload-artifact@v4
-  if: always()
-  with:
-    name: quickstarted-results
-    path: results/
+- run: quickstarted run journeys/*.yaml --agent replay --junit junit.xml
 ```
 
-`quickstarted run` exits 1 when any journey fails, so the job gates merges.
-`results.json` is versioned (schema 1.0). JUnit XML reports a docs gap as a
-failure and infrastructure trouble as an error, so a rate limit does not read
-as a broken quickstart. Run agent mode on a schedule, or when a model ships.
-Every push is too often, because agent runs cost real tokens.
+Agent mode on a schedule, or when a model ships, because it costs real tokens:
+
+```yaml
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+jobs:
+  agent:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "quickstarted[claude]"
+      - run: quickstarted run journeys/*.yaml --agent claude --repeat 3
+             --out results --junit junit.xml
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quickstarted-results
+          path: results/
+```
+
+`quickstarted run` exits 1 when any journey fails, so either job can gate
+merges. `results.json` is versioned (schema 1.0). JUnit XML reports a docs gap
+as a failure and infrastructure trouble as an error, so a rate limit does not
+read as a broken quickstart.
 
 ## Fetching other people's docs
 

@@ -57,9 +57,10 @@ nav:
   - Getting started:
       - Install: getting-started/install.md
       - Your first run: getting-started/first-run.md
-      - Agent mode: getting-started/agent-mode.md
+      - Agent mode in depth: getting-started/agent-mode.md
   - Guides:
       - Writing journeys: guides/writing-journeys.md
+      - Replay mode: guides/replay-mode.md
       - Sandboxing: guides/sandboxing.md
       - Pass rates: guides/pass-rates.md
       - Measuring llms.txt: guides/affordances.md

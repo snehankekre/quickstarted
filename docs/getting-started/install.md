@@ -2,14 +2,7 @@
 
 > Install quickstarted and check what your machine can enforce.
 
-```bash
-pip install quickstarted
-```
-
-Python 3.9 or newer. The base install has one runtime dependency, PyYAML, and
-runs replay mode, which needs no API key and no model.
-
-Agent mode needs a vendor SDK:
+Agent mode is what you came for, so install a vendor SDK with it:
 
 ```bash
 pip install "quickstarted[claude]"       # Anthropic
@@ -17,6 +10,17 @@ pip install "quickstarted[openai]"       # OpenAI
 pip install "quickstarted[gemini]"       # Google
 pip install "quickstarted[all-agents]"   # all three
 ```
+
+Python 3.9 or newer. The only runtime dependency the harness itself adds is
+PyYAML; the rest is the SDK you chose.
+
+```bash
+pip install quickstarted
+```
+
+The bare install runs [replay mode](../guides/replay-mode.md) only, which needs
+no model and no key. That is the right install for a CI job that just checks the
+documented commands still work.
 
 ## Check your machine
 
