@@ -239,32 +239,46 @@ class DockerExecutor:
         an empty directory would otherwise trip over the probe file.
         """
         token = uuid.uuid4().hex[:12]
-        probe = self.root / ".quickstarted-mount-probe"
+        out_probe = self.root / ".quickstarted-probe-out"
+        in_probe = self.root / ".quickstarted-probe-in"
         try:
-            probe.write_text(token, encoding="utf-8")
+            out_probe.write_text(token, encoding="utf-8")
         except OSError as exc:
             return False, f"cannot write to the workspace: {exc}"
 
         seen = _docker(
-            ["exec", self.container, "cat", "/workspace/.quickstarted-mount-probe"],
+            ["exec", self.container, "cat", "/workspace/.quickstarted-probe-out"],
             timeout=60,
         )
         host_to_container = seen.returncode == 0 and token in (seen.stdout or "")
 
         # And the other direction, since a read-only or one-way share also
-        # breaks the run in ways that look like a task bug.
+        # breaks the run in ways that look like a task bug. The container writes
+        # its own file rather than overwriting ours: where the daemon remaps
+        # container root to a subordinate uid (rootless, userns-remap, some CI
+        # runners), that uid cannot overwrite a file owned by the invoking user,
+        # but it can create one in a workspace we already made world-writable.
         reverse = uuid.uuid4().hex[:12]
         wrote = _docker(
             [
                 "exec", self.container, "sh", "-c",
-                f"printf %s {reverse} > /workspace/.quickstarted-mount-probe",
+                f"printf %s {reverse} > /workspace/.quickstarted-probe-in",
             ],
             timeout=60,
         )
-        container_to_host = wrote.returncode == 0 and probe.exists() and (
-            probe.read_text(encoding="utf-8").strip() == reverse
+        container_to_host = wrote.returncode == 0 and in_probe.exists() and (
+            in_probe.read_text(encoding="utf-8").strip() == reverse
         )
-        probe.unlink(missing_ok=True)
+        out_probe.unlink(missing_ok=True)
+        # Written by another uid where the daemon remaps, so removing it may need
+        # the container's help.
+        try:
+            in_probe.unlink(missing_ok=True)
+        except OSError:
+            _docker(
+                ["exec", self.container, "rm", "-f", "/workspace/.quickstarted-probe-in"],
+                timeout=60,
+            )
         return (
             host_to_container and container_to_host,
             f"host->container: {host_to_container}, "
