@@ -30,7 +30,8 @@ def available() -> bool:
 
 
 def build_profile(sandbox: Path, proxy_port: int | None, real_home: Path) -> str:
-    """Seatbelt profile source. Later rules win, so order is load-bearing.
+    """Seatbelt profile source. Later rules win, so the order of these lines
+    changes what the policy permits.
 
     `sandbox` is the parent of both the workspace and the agent's HOME, so one
     subpath rule covers everything the run may write.
