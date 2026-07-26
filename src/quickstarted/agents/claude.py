@@ -30,6 +30,27 @@ DEFAULT_MODEL = "claude-opus-5"
 #: worse than one that dies.
 RETRYABLE_STATUS = (408, 409, 429, 500, 502, 503, 529)
 MAX_ATTEMPTS = 5
+#: Models that rejected adaptive thinking, learned at runtime from the API's own
+#: 400 rather than kept as a list here. Module-level so one refusal teaches the
+#: whole suite instead of every run paying for the same round trip.
+_NO_ADAPTIVE_THINKING: set[str] = set()
+
+
+def is_thinking_refusal(status_code: int, message: str, sent_thinking: bool) -> bool:
+    """Did the API reject this request only because it asked for thinking?
+
+    Keyed on what the request sent, never on the shared set above: under
+    `--workers N` every worker hits the same 400 at once, and a check against the
+    set would let the first worker recover while the rest read the model as
+    already-known, skip the retry, and report a harness error for a run that
+    would have worked.
+    """
+    return (
+        status_code == 400
+        and sent_thinking
+        and "thinking" in (message or "").lower()
+    )
+
 KEY_ENV = "QUICKSTARTED_ANTHROPIC_API_KEY"
 FALLBACK_KEY_ENV = "ANTHROPIC_API_KEY"
 
@@ -148,6 +169,13 @@ class ClaudeAgent:
             """Returns (response, error_detail). Retries transient upstream faults."""
             last = ""
             for attempt in range(1, MAX_ATTEMPTS + 1):
+                # What *this* request sent, not what the shared set says now.
+                # Under --workers N every worker hits the same 400 at once; if
+                # the recovery below keys off the set, the first worker records
+                # the model and the rest read it as already-known, skip the
+                # retry, and report a harness error for a run that would have
+                # worked.
+                sent_thinking = self.model not in _NO_ADAPTIVE_THINKING
                 try:
                     return (
                         # The SDK's overloads require literal-typed tool
@@ -156,11 +184,15 @@ class ClaudeAgent:
                         client.messages.create(  # type: ignore[call-overload]
                             model=self.model,
                             max_tokens=self.max_tokens,
-                            thinking={"type": "adaptive"},
                             cache_control={"type": "ephemeral"},
                             system=SYSTEM,
                             tools=tools,
                             messages=messages,
+                            **(
+                                {"thinking": {"type": "adaptive"}}
+                                if sent_thinking
+                                else {}
+                            ),
                         ),
                         "",
                     )
@@ -171,6 +203,20 @@ class ClaudeAgent:
                     last = f"connection error: {exc}"
                 except anthropic.APIStatusError as exc:
                     last = f"API error {exc.status_code}: {exc.message}"
+                    if is_thinking_refusal(
+                        exc.status_code, exc.message or "", sent_thinking
+                    ):
+                        # Not every model accepts adaptive thinking, and which
+                        # ones do changes faster than a hardcoded list would
+                        # survive. Learn it from the refusal and retry without
+                        # it: Haiku 4.5 otherwise fails every run of a suite in
+                        # under seven seconds with nothing to show for it.
+                        _NO_ADAPTIVE_THINKING.add(self.model)
+                        toolbelt.trace.add(
+                            "adaptive_thinking_unsupported",
+                            turn=turn, model=self.model,
+                        )
+                        continue
                     if exc.status_code not in RETRYABLE_STATUS:
                         return None, last
                 if attempt == MAX_ATTEMPTS:

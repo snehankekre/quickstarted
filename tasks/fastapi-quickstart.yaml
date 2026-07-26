@@ -15,8 +15,22 @@ success:
     set -e
     test -f app.py
     # The harness decides whether it really serves: start it, ask it, stop it.
-    .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8611 \
-      > server.log 2>&1 &
+    #
+    # Whichever documented way of serving is available, because the tutorial
+    # leads with `fastapi dev` while uvicorn is the older instruction, and
+    # requiring one of them measures my expectation rather than the docs. That
+    # mistake cost three runs: an agent that installed plain `fastapi` rather
+    # than `fastapi[standard]` had no uvicorn, and a working app was recorded as
+    # a documentation gap.
+    if [ -x .venv/bin/fastapi ]; then
+      .venv/bin/fastapi run app.py --host 127.0.0.1 --port 8611 > server.log 2>&1 &
+    elif .venv/bin/python -c "import uvicorn" 2>/dev/null; then
+      .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8611 \
+        > server.log 2>&1 &
+    else
+      echo "neither the fastapi CLI nor uvicorn is installed, so nothing can serve app.py"
+      exit 1
+    fi
     pid=$!
     # `if !` rather than a bare call, so a failure does not trip `set -e` before
     # the diagnostics below get a chance to run. The exit code is the verdict,

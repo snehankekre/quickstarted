@@ -131,3 +131,23 @@ def test_openai_usage_does_not_double_count_cached_tokens(task, monkeypatch):
     assert outcome.cache_read_tokens == 800
     assert outcome.input_tokens == 200, "cached tokens must not be counted twice"
     assert outcome.total_tokens == 1050
+
+
+@pytest.mark.parametrize(
+    "status, message, sent, expected",
+    [
+        (400, "adaptive thinking is not supported on this model", True, True),
+        # The decision must key on what this request sent. A worker whose sibling
+        # already recorded the model still sent thinking on this attempt, and
+        # still has to recover; keying on the shared set made two of three
+        # concurrent Haiku runs report a harness error instead.
+        (400, "adaptive thinking is not supported on this model", False, False),
+        # Other 400s are real errors and must not be retried into a loop.
+        (400, "max_tokens must be positive", True, False),
+        (429, "rate limited", True, False),
+    ],
+)
+def test_is_thinking_refusal(status, message, sent, expected):
+    from quickstarted.agents.claude import is_thinking_refusal
+
+    assert is_thinking_refusal(status, message, sent) is expected

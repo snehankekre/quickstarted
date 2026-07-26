@@ -13,3 +13,5 @@ htmlcov/
 site/
 .cache/
 bench/
+bench.old/
+bench*/
