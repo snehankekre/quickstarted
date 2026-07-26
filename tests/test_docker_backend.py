@@ -18,18 +18,53 @@ from quickstarted.exec.docker import DockerExecutor
 from quickstarted.trace import Trace
 
 FAKE_DOCKER = """#!/usr/bin/env python3
-import json, os, sys
+import json, os, re, sys
 
 log = os.environ["FAKE_DOCKER_LOG"]
 with open(log, "a") as fh:
     fh.write(json.dumps(sys.argv[1:]) + "\\n")
 
 args = sys.argv[1:]
-if args and args[0] == "logs":
+side = log + ".workspace"
+
+
+def workspace():
+    try:
+        with open(side) as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+if args and args[0] == "run":
+    # Remember the host side of -v <host>:/workspace, so the mount probe below
+    # can behave like a real bind mount.
+    for i, a in enumerate(args):
+        if a == "-v" and i + 1 < len(args) and args[i + 1].endswith(":/workspace"):
+            with open(side, "w") as fh:
+                fh.write(args[i + 1].rsplit(":/workspace", 1)[0])
+elif args and args[0] == "logs":
     print(json.dumps({"ts": 1.0, "type": "egress_blocked", "host": "evil.test",
                       "reason": "not_allowlisted", "method": "CONNECT"}))
 elif args and args[0] == "exec":
-    print("fake-output")
+    ws = workspace()
+    # Satisfy the two shapes the bind-mount probe uses, against the real host
+    # directory, so a genuinely working mount verifies here too.
+    if ws and len(args) >= 4 and args[-2] == "cat" and args[-1].startswith("/workspace/"):
+        try:
+            with open(os.path.join(ws, args[-1][len("/workspace/"):])) as fh:
+                sys.stdout.write(fh.read())
+        except OSError:
+            sys.exit(1)
+    elif ws and args[-1].startswith("printf %s "):
+        m = re.match(r"printf %s (\\S+) > /workspace/(\\S+)", args[-1])
+        if m:
+            with open(os.path.join(ws, m.group(2)), "w") as fh:
+                fh.write(m.group(1))
+        else:
+            sys.exit(1)
+    else:
+        print("fake-output")
 sys.exit(0)
 """
 

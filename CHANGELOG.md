@@ -45,6 +45,17 @@ journey.
 
 ### Fixed
 
+- **Docker workspaces no longer leak into the VM (macOS).** The sandbox root
+  came from `tempfile.mkdtemp()`, which on macOS returns a path under
+  `/var/folders`. That is not shared with the Docker VM, so `-v` created a
+  directory of the same name *inside* the VM and mounted that instead. Runs
+  passed, but the host saw an empty workspace, `--keep-sandbox` handed back
+  nothing, and cleanup freed no bytes. Found by filling a 19 GB Colima disk with
+  132 orphaned workspaces, after which every run failed with `no space left on
+  device` and was correctly classified `harness_error`. The root now defaults to
+  `~/.quickstarted/sandboxes` on macOS, overridable with
+  `QUICKSTARTED_SANDBOX_DIR`, and the mount is probed in both directions at
+  startup so a path the daemon cannot see is refused immediately.
 - **The workspace starts empty.** `HOME` and `TMPDIR` used to point inside the
   workspace, so `.npm`, `.cache` and `tmp/` were there before the agent ran a
   single command, and every scaffolding tool that requires an empty directory

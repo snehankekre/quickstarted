@@ -125,3 +125,30 @@ def test_no_proxy_is_absent_without_a_proxy():
         assert "NO_PROXY" not in ex.env()
     finally:
         ex.cleanup()
+
+
+def test_sandbox_root_avoids_unshared_paths_on_macos(monkeypatch, tmp_path):
+    """On macOS the workspace must not come from the system temp directory.
+
+    /var/folders is not shared with the Docker VM, so a bind mount there is
+    created inside the VM instead: the container writes, the host sees nothing,
+    and cleanup frees nothing until the VM disk fills.
+    """
+    from quickstarted.exec import docker as docker_mod
+
+    monkeypatch.delenv("QUICKSTARTED_SANDBOX_DIR", raising=False)
+    monkeypatch.setattr(docker_mod.sys, "platform", "darwin")
+    monkeypatch.setattr(docker_mod.Path, "home", staticmethod(lambda: tmp_path))
+    root = docker_mod._sandbox_root()
+    assert root.is_dir()
+    assert tmp_path in root.parents
+    assert not str(root).startswith("/var/folders")
+
+
+def test_sandbox_root_honours_the_override(monkeypatch, tmp_path):
+    from quickstarted.exec import docker as docker_mod
+
+    monkeypatch.setenv("QUICKSTARTED_SANDBOX_DIR", str(tmp_path / "elsewhere"))
+    root = docker_mod._sandbox_root()
+    assert root.is_dir()
+    assert (tmp_path / "elsewhere") in root.parents

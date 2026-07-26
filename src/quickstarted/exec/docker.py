@@ -20,6 +20,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -49,6 +50,30 @@ def available() -> bool:
         )
     except (OSError, subprocess.SubprocessError):
         return False
+
+
+def _sandbox_root() -> Path:
+    """A workspace directory the daemon can really bind-mount from the host.
+
+    On macOS the daemon runs inside a VM and only some host paths are shared
+    with it. `tempfile.mkdtemp()` returns a path under `/var/folders`, which is
+    not one of them, so `docker run -v` silently creates the directory *inside
+    the VM* instead: the container writes there, the host sees an empty
+    directory, and cleanup frees nothing. That leak is invisible until the VM
+    disk fills, at which point every run fails with "no space left on device".
+
+    The user's home is shared by default on both Docker Desktop and Colima, so
+    put the workspace under it there. Linux has no VM and no such problem.
+    """
+    override = os.environ.get("QUICKSTARTED_SANDBOX_DIR")
+    if override:
+        base = Path(override).expanduser()
+    elif sys.platform == "darwin":
+        base = Path.home() / ".quickstarted" / "sandboxes"
+    else:
+        return Path(tempfile.mkdtemp(prefix="quickstarted-"))
+    base.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix="quickstarted-", dir=base))
 
 
 def _docker(args: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
@@ -85,7 +110,7 @@ class DockerExecutor:
         # Nothing but the task's own files goes in here: HOME and TMPDIR point
         # at the container's filesystem, so a scaffolder that demands an empty
         # directory gets one.
-        self.root = Path(tempfile.mkdtemp(prefix="quickstarted-"))
+        self.root = _sandbox_root()
         # mkdtemp gives 0700 owned by the invoking user. Where the daemon remaps
         # container root to another uid (rootless Docker, userns-remap, some CI
         # runners), that uid cannot write the bind mount and every task dies
@@ -137,31 +162,114 @@ class DockerExecutor:
         for key in ("NO_PROXY", "no_proxy"):
             env_args += ["-e", f"{key}=localhost,127.0.0.1,::1"]
 
-        sandbox = _docker(
-            [
-                "run", "-d", "--name", self.container,
-                "--network", self.network,
-                "--cap-drop", "ALL",
-                "--security-opt", "no-new-privileges",
-                "--pids-limit", "512",
-                "-v", f"{self.root}:/workspace",
-                "-w", "/workspace",
-                # HOME and TMPDIR stay off the bind mount. A HOME inside the
-                # workspace fills it with dotfiles, and every scaffolding tool
-                # (`npm create`, `django-admin startproject .`) refuses to run
-                # in a directory that is not empty. Both live on the container's
-                # own filesystem, which is thrown away with the container.
-                "-e", "HOME=/root",
-                "-e", "TMPDIR=/tmp",
-                "-e", "NO_COLOR=1",
-                "-e", "TERM=dumb",
-                *env_args,
-                self.image, "sleep", "infinity",
-            ]
+        # Verify the mount and recreate the container if it is wrong. Recreating
+        # is the only available remedy: once a container is running against a
+        # VM-local directory, nothing the host does will redirect it. Retrying
+        # covers the case where the daemon had not yet observed a just-created
+        # host directory; a genuinely unshared path fails all three times and
+        # reports which direction broke.
+        last = ""
+        for attempt in range(3):
+            sandbox = _docker(
+                [
+                    "run", "-d", "--name", self.container,
+                    "--network", self.network,
+                    "--cap-drop", "ALL",
+                    "--security-opt", "no-new-privileges",
+                    "--pids-limit", "512",
+                    "-v", f"{self.root}:/workspace",
+                    "-w", "/workspace",
+                    # HOME and TMPDIR stay off the bind mount. A HOME inside the
+                    # workspace fills it with dotfiles, and every scaffolding
+                    # tool (`npm create`, `django-admin startproject .`) refuses
+                    # to run in a directory that is not empty. Both live on the
+                    # container's own filesystem, which goes away with it.
+                    "-e", "HOME=/root",
+                    "-e", "TMPDIR=/tmp",
+                    "-e", "NO_COLOR=1",
+                    "-e", "TERM=dumb",
+                    *env_args,
+                    self.image, "sleep", "infinity",
+                ]
+            )
+            if sandbox.returncode != 0:
+                self.cleanup()
+                raise ExecutorError(
+                    f"could not start sandbox container: {sandbox.stdout}"
+                )
+            ok, last = self._check_bind_mount()
+            if ok:
+                return
+            self._discard_sandbox_container()
+            time.sleep(1 + attempt)
+
+        self.cleanup()
+        raise ExecutorError(
+            f"the sandbox workspace at {self.root} is not shared with the Docker "
+            f"daemon after 3 attempts ({last}). Files the container writes would "
+            f"stay inside the VM, invisible to the host and never cleaned up. Add "
+            f"the directory to the daemon's file-sharing list, or set "
+            f"QUICKSTARTED_SANDBOX_DIR to a path that is already shared."
         )
-        if sandbox.returncode != 0:
-            self.cleanup()
-            raise ExecutorError(f"could not start sandbox container: {sandbox.stdout}")
+
+    def _discard_sandbox_container(self) -> None:
+        """Remove a sandbox container whose bind mount turned out to be wrong.
+
+        Anything it wrote sits on the far side of that mount where host cleanup
+        cannot reach it, so empty it from inside first.
+        """
+        _docker(
+            ["exec", self.container, "sh", "-c",
+             "rm -rf /workspace/* /workspace/.[!.]* 2>/dev/null || true"],
+            timeout=60,
+        )
+        _docker(["rm", "-f", self.container], timeout=60)
+
+    def _check_bind_mount(self) -> tuple[bool, str]:
+        """Is /workspace really the host directory, in both directions?
+
+        If the host path is not shared with the daemon, `-v` creates a directory
+        of the same name inside the VM and mounts that. Everything appears to
+        work: commands run, files are written, the run passes. But the host sees
+        an empty workspace, `--keep-sandbox` hands back nothing, and cleanup
+        frees no bytes, so the VM disk fills one run at a time until every run
+        dies on "no space left on device".
+
+        Leaves the workspace empty either way, since a scaffolder that demands
+        an empty directory would otherwise trip over the probe file.
+        """
+        token = uuid.uuid4().hex[:12]
+        probe = self.root / ".quickstarted-mount-probe"
+        try:
+            probe.write_text(token, encoding="utf-8")
+        except OSError as exc:
+            return False, f"cannot write to the workspace: {exc}"
+
+        seen = _docker(
+            ["exec", self.container, "cat", "/workspace/.quickstarted-mount-probe"],
+            timeout=60,
+        )
+        host_to_container = seen.returncode == 0 and token in (seen.stdout or "")
+
+        # And the other direction, since a read-only or one-way share also
+        # breaks the run in ways that look like a task bug.
+        reverse = uuid.uuid4().hex[:12]
+        wrote = _docker(
+            [
+                "exec", self.container, "sh", "-c",
+                f"printf %s {reverse} > /workspace/.quickstarted-mount-probe",
+            ],
+            timeout=60,
+        )
+        container_to_host = wrote.returncode == 0 and probe.exists() and (
+            probe.read_text(encoding="utf-8").strip() == reverse
+        )
+        probe.unlink(missing_ok=True)
+        return (
+            host_to_container and container_to_host,
+            f"host->container: {host_to_container}, "
+            f"container->host: {container_to_host}",
+        )
 
     def run(
         self, command: str, timeout: int, max_output_chars: int = 20_000

@@ -34,6 +34,21 @@ quickstarted() {
 | Variable | Meaning |
 | --- | --- |
 | `QUICKSTARTED_PRICES` | Path to a price book; `--prices` overrides it |
+| `QUICKSTARTED_SANDBOX_DIR` | Parent directory for Docker workspaces |
+
+### QUICKSTARTED_SANDBOX_DIR
+
+The `docker` backend bind-mounts a fresh workspace into the container, which
+requires a host path the daemon can actually see. On Linux that is any path. On
+macOS the daemon runs inside a VM with only some directories shared, so the
+default there is `~/.quickstarted/sandboxes` rather than the system temp
+directory, which is not shared.
+
+Set this if your daemon shares a different set of paths, or to put workspaces on
+a specific disk. The mount is verified at startup and the run is refused if it
+does not work in both directions, because a bind mount the daemon quietly
+redirects into the VM produces runs that pass while the host sees an empty
+workspace and cleanup frees nothing.
 
 ## Test suite
 
