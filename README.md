@@ -24,26 +24,48 @@ Full documentation: **https://snehankekre.com/quickstarted/**
 You write a journey, in YAML:
 
 ```yaml
-name: pnf-quickstart
+name: streamlit-quickstart
 goal: >
-  Install the pnf package from PyPI into a virtualenv and write a runnable
-  snippet that imports pnf and identifies the decode function.
+  Install Streamlit into the virtualenv in this workspace and build a small app
+  in app.py that shows a title and a slider whose value is displayed on the
+  page. Do not start a long-running server yourself; just leave app.py ready to
+  run and confirm streamlit is installed.
 docs:
-  entrypoint: https://raw.githubusercontent.com/snehankekre/pnf/main/README.md
+  entrypoint: https://docs.streamlit.io/get-started
   allow:
-    - raw.githubusercontent.com
+    - docs.streamlit.io
+    - streamlit.io
 setup:
   - python3 -m venv .venv
 success:
   script: |
     set -e
-    .venv/bin/python -c "import pnf; assert callable(pnf.decode)"
-    .venv/bin/python demo.py
-replay:
-  - .venv/bin/pip install pnf
-  - printf 'import pnf\nprint(pnf.decode.__name__)\n' > demo.py
-  - .venv/bin/python demo.py
+    test -f app.py
+    .venv/bin/streamlit --version
+    # The harness decides whether the app really runs: serve it headless on a
+    # fixed port and ask Streamlit's own health endpoint.
+    .venv/bin/streamlit run app.py --server.headless true --server.port 8599 \
+      > server.log 2>&1 &
+    pid=$!
+    .venv/bin/python - <<'PY'
+    import sys, time, urllib.request
+    for _ in range(40):
+        time.sleep(1)
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8599/_stcore/health", timeout=5) as r:
+                if b"ok" in r.read():
+                    sys.exit(0)
+        except Exception:
+            continue
+    sys.exit(1)
+    PY
+    status=$?
+    kill "$pid" 2>/dev/null || true
+    exit $status
 ```
+
+The full file, including the `replay` commands, is
+[journeys/streamlit-quickstart.yaml](journeys/streamlit-quickstart.yaml).
 
 The harness runs an agent in a throwaway workspace with two tools: a sandboxed
 `bash`, and `read_docs`, which is the only way it can read documentation.
@@ -66,7 +88,7 @@ Treat it as a precondition. If the documented commands break, no reader stands
 a chance, and agent mode only adds noise.
 
 ```
-quickstarted run journeys/pnf-quickstart.yaml --agent replay
+quickstarted run journeys/streamlit-quickstart.yaml --agent replay
 ```
 
 **Agent mode** has an LLM follow your docs to the goal. This catches what
@@ -76,7 +98,7 @@ context a newcomer does not have.
 ```
 pip install "quickstarted[claude]"
 export QUICKSTARTED_ANTHROPIC_API_KEY=...
-quickstarted run journeys/pnf-quickstart.yaml --agent claude
+quickstarted run journeys/streamlit-quickstart.yaml --agent claude
 ```
 
 Keys are read from `QUICKSTARTED_*` names first so they can sit in your shell
@@ -84,12 +106,12 @@ without other tooling on the same machine picking them up and spending them.
 The vendor-standard names still work as a fallback, which is what CI sets.
 
 ```
-[PASS] pnf-quickstart (claude:claude-opus-5)
+[PASS] streamlit-quickstart (claude:claude-opus-5)
   classification: passed
-  turns: 12, duration: 70.7s
-  backend: seatbelt
-  tokens: 24 in / 4616 out, cache 16812 written / 104148 read
-  docs pages read: 2
+  turns: 6, duration: 63.5s
+  backend: docker
+  tokens: 12 in / 1150 out, cache 11204 written / 33181 read
+  docs pages read: 4
 ```
 
 ## Pass rates
