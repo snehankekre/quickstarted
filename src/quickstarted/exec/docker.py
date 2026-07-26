@@ -17,6 +17,7 @@ merged into the run trace.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -83,6 +84,14 @@ class DockerExecutor:
         self.trace = trace
         self.root = Path(tempfile.mkdtemp(prefix="quickstarted-"))
         (self.root / "tmp").mkdir()
+        # mkdtemp gives 0700 owned by the invoking user. Where the daemon remaps
+        # container root to another uid (rootless Docker, userns-remap, some CI
+        # runners), that uid cannot write the bind mount and every journey dies
+        # in setup. Widen the throwaway workspace instead of forcing the
+        # container to a non-root user, because a quickstart is allowed to say
+        # `apt-get install`.
+        os.chmod(self.root, 0o777)
+        os.chmod(self.root / "tmp", 0o777)
         token = uuid.uuid4().hex[:10]
         self.network = f"quickstarted-net-{token}"
         self.proxy_name = f"quickstarted-proxy-{token}"

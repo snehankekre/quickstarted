@@ -68,7 +68,9 @@ class GeminiAgent:
         client = genai.Client(api_key=api_key)
         config = types.GenerateContentConfig(
             system_instruction=SYSTEM,
-            tools=[types.Tool(function_declarations=FUNCTIONS)],
+            tools=[
+                types.Tool(function_declarations=FUNCTIONS)  # type: ignore[arg-type]
+            ],
         )
         contents = [
             types.Content(role="user", parts=[types.Part(text=kickoff(journey))])
@@ -101,7 +103,8 @@ class GeminiAgent:
             self.model_reported = getattr(response, "model_version", "") or self.model
             toolbelt.trace.add("agent_turn", turn=turn, model=self.model_reported)
 
-            candidate = (response.candidates or [None])[0]
+            candidates = response.candidates or []
+            candidate = candidates[0] if candidates else None
             if candidate is None or not candidate.content:
                 return outcome("error", turn, "empty response from model")
             contents.append(candidate.content)
@@ -127,7 +130,7 @@ class GeminiAgent:
                     result = f"Unknown tool: {call.name}"
                 replies.append(
                     types.Part.from_function_response(
-                        name=call.name, response={"result": result}
+                        name=call.name or "unknown", response={"result": result}
                     )
                 )
             contents.append(types.Content(role="user", parts=replies))

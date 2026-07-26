@@ -39,7 +39,10 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.11",
+    # All three vendor SDKs, so type checking sees what a developer sees.
     "anthropic>=0.40",
+    "openai>=1.40",
+    "google-genai>=1.0",
 ]
 
 [project.scripts]
