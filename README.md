@@ -95,8 +95,8 @@ ends with "you should see `200`", the check is `grep -q 200`.
 You can go stricter when it is worth it.
 [tasks/streamlit-quickstart.yaml](tasks/streamlit-quickstart.yaml) boots
 the app headless and polls Streamlit's own health endpoint, which is about
-fifteen more lines and proves the app actually serves. That is a choice, not a
-requirement. Start with the two-line version.
+fifteen more lines and proves the app actually serves. That is optional. Start
+with the two-line version.
 
 ## Replay mode, the free precondition
 

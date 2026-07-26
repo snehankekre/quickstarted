@@ -116,8 +116,8 @@ def classify(outcome: AgentOutcome, score: ScoreResult | None, trace: Trace) -> 
     if trace.of_type("egress_error"):
         return INFRA_ERROR
     blocked = trace.of_type("egress_blocked")
-    # Documented commands that died because our own policy refused their
-    # traffic say the task's network allowlist is wrong, not the docs.
+    # Documented commands that died because our own policy refused their traffic
+    # say the task's network allowlist is wrong. The docs are not implicated.
     if blocked and reason == "command_failed":
         return HARNESS_ERROR
     if any(e.data.get("reason") == "not_allowlisted" for e in blocked):

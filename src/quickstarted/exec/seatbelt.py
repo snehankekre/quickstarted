@@ -1,10 +1,10 @@
 """Enforced local execution on macOS via sandbox-exec (Seatbelt).
 
 This is the backend that makes the harness's central claim true rather than
-merely intended. The kernel, not the agent's good manners, is what stops a
-command from reaching a documentation host directly: all outbound network is
-denied except the loopback port the harness proxy listens on, so every page
-the agent reads is either a `read_docs` call or a recorded proxy request.
+merely intended. What stops a command from reaching a documentation host
+directly is the kernel. All outbound network is denied except the loopback port
+the harness proxy listens on, so every page the agent reads is either a
+`read_docs` call or a recorded proxy request.
 
 It also confines the blast radius of running commands that came out of a
 stranger's quickstart: reads of the real home directory are denied and writes

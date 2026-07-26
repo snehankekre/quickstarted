@@ -169,7 +169,8 @@ class ClaudeAgent:
             """Returns (response, error_detail). Retries transient upstream faults."""
             last = ""
             for attempt in range(1, MAX_ATTEMPTS + 1):
-                # What *this* request sent, not what the shared set says now.
+                # What *this* request sent. The shared set below can change
+                # under a sibling worker between the call and the failure.
                 # Under --workers N every worker hits the same 400 at once; if
                 # the recovery below keys off the set, the first worker records
                 # the model and the rest read it as already-known, skip the
@@ -180,7 +181,7 @@ class ClaudeAgent:
                     return (
                         # The SDK's overloads require literal-typed tool
                         # params; ours are built at runtime. Behaviour is
-                        # covered by the live runs, not by these types.
+                        # covered by the live runs rather than these types.
                         client.messages.create(  # type: ignore[call-overload]
                             model=self.model,
                             max_tokens=self.max_tokens,

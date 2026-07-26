@@ -17,9 +17,9 @@ A quickstart that says `curl ... | bash` will be followed.
 `quickstarted run` refuses to use `local` unless you pass `--allow-unenforced`.
 `quickstarted doctor` reports what the current machine can enforce.
 
-Seatbelt is deprecated by Apple but functional. It is a real boundary, not a
-strong one: treat it as good hygiene for local work, and use containers for
-projects you do not control.
+Seatbelt is deprecated by Apple but functional. It is a real boundary and a weak one. Treat it as
+good hygiene for local work, and use containers for projects you do not
+control.
 
 ## Credentials
 

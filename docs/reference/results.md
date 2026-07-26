@@ -1,6 +1,7 @@
 # Results schema
 
-> `results.json`, version 2.0. Fields get added, not repurposed.
+> `results.json`, version 2.0. New fields are added; existing ones keep their
+> meaning.
 
 Written to `<out>/results.json` when you pass `--out`. The version rises when a
 field changes meaning, so anything parsing this file can check one number.

@@ -4,7 +4,7 @@ Three things live here that a benchmark cannot do without.
 
 **Reproducibility.** Responses are cached by content hash, so a rerun reads
 the same bytes the first run did. When a refresh sees different bytes, that is
-recorded: "the docs changed under us" is a finding, not an inconvenience.
+recorded, because "the docs changed under us" is itself a finding.
 
 **Politeness.** Benchmarking fifty projects means fetching from fifty
 companies who did not ask to be measured. A truthful User-Agent, one request
@@ -298,7 +298,9 @@ class DocsClient:
                 present=present,
                 status=response.status,
                 bytes=len(body.encode("utf-8")),
-                note="served HTML, not a machine-readable file" if looks_like_html else "",
+                note="served HTML where a machine-readable file was expected"
+                if looks_like_html
+                else "",
             )
         return found
 

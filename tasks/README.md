@@ -54,8 +54,8 @@ documentation prints, which runs with no model and no API key:
 quickstarted run tasks/*.yaml --agent replay
 ```
 
-That is the free precondition, not the main event. It proves the documented
-commands still work. It cannot tell you whether a reader could have found them.
+That is the free precondition. It proves the documented commands still work, and
+it cannot tell you whether a reader could have found them.
 
 ## A note on fetching these
 

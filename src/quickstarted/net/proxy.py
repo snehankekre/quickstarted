@@ -3,8 +3,8 @@
 Every packet an agent's shell sends leaves through here, which buys three
 things the v0 design only hoped for:
 
-1. **Enforcement.** The task's network allowlist is applied by the proxy,
-   not by asking the agent nicely to use the `read_docs` tool.
+1. **Enforcement.** The proxy applies the task's network allowlist itself,
+   so using the `read_docs` tool is a condition rather than a request.
 2. **Attribution.** Documentation hosts are deliberately *not* reachable from
    the shell. An agent that tries `curl https://docs.example.com/...` is
    refused and the attempt is recorded, so the set of pages the agent read is
@@ -160,8 +160,9 @@ class _ProxyHandler(BaseHTTPRequestHandler):
             self.proxy.blocked_docs_attempts += 1
             body = (
                 f"BLOCKED by quickstarted: {host} is a documentation host. "
-                "Read documentation with the read_docs tool, not the shell, so "
-                "that every page you read is recorded.\n"
+                "Use the read_docs tool to read documentation. The shell cannot "
+                "reach documentation hosts, which is how every page you read "
+                "ends up recorded.\n"
             ).encode()
         else:
             allowed = ", ".join(self.proxy.network_allow) or "(none)"

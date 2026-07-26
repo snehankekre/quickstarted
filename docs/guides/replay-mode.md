@@ -41,7 +41,7 @@ agent has to find one.
 So treat replay as a precondition. If it fails, fix that first, because an agent
 failure on top of broken commands tells you nothing new.
 
-## Failures are classified, not just counted
+## Every failure gets a classification
 
 Break a replay block on purpose by installing a package that does not exist:
 

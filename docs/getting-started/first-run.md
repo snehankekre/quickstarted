@@ -69,7 +69,7 @@ That second tool is the only route to your documentation. Every command runs
 inside a sandbox whose one path to the network is a proxy the harness owns, and
 `python-httpx.org` is unreachable from the shell. An agent that tries
 `curl https://www.python-httpx.org/` is refused and the attempt is recorded. So
-"docs pages read: 1" is a measurement, not a claim.
+"docs pages read: 1" is a measurement.
 
 When the agent stopped, the harness ran `success.script` in the same workspace.
 Exit code 0 is a pass and nothing else is. The agent's own report of success is
@@ -106,8 +106,8 @@ because it installed `fastapi` where the page says `fastapi[standard]`. That is
 a bug report with a page attached, and it reproduced on three runs out of three
 while Claude Opus 5 passed the same task eleven times out of eleven.
 
-Two runs of the same task on two models disagreeing is the normal case, not a
-malfunction. See [pass rates](../guides/pass-rates.md).
+Two models disagreeing on the same task is the normal case. See
+[pass rates](../guides/pass-rates.md).
 
 ## Add a free precondition
 

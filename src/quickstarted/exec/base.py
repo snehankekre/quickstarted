@@ -66,11 +66,11 @@ class ProcessExecutor:
     enforced = False
 
     def __init__(self, keep: bool = False, proxy_url: str | None = None):
-        # The workspace and the agent's HOME are siblings, not the same
-        # directory. Scaffolding tools (`npm create`, `django-admin startproject
-        # .`, `cargo new`) refuse to run in a directory that is not empty, and a
-        # HOME inside the workspace fills it with dotfiles before the agent has
-        # typed anything. That failure has nothing to do with the docs.
+        # The workspace and the agent's HOME are siblings. Scaffolding tools
+        # (`npm create`, `django-admin startproject .`, `cargo new`) refuse to
+        # run in a directory that is not empty, and a HOME inside the workspace
+        # fills it with dotfiles before the agent has typed anything. That
+        # failure has nothing to do with the docs.
         self.base = Path(tempfile.mkdtemp(prefix="quickstarted-"))
         self.root = self.base / "workspace"
         self.root.mkdir()

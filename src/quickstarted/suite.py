@@ -1,6 +1,6 @@
 """Running many tasks many times, and reporting rates rather than verdicts.
 
-A single agent run is a sample, not a measurement. The same docs and the same
+A single agent run is one sample. The same docs and the same
 model can pass at 10:00 and fail at 10:05, so a benchmark that publishes one
 run per project is publishing noise with a confident face on it.
 
@@ -197,7 +197,7 @@ def run_suite(
         stats=[by_task[k] for k in order],
         duration=time.monotonic() - start,
         repeat=repeat,
-        # The resolved backend, not the request: "auto" in a published result
+        # The resolved backend. "auto" in a published result
         # tells a reader nothing about what was enforced.
         backend=resolve_backend(backend),
     )

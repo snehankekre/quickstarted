@@ -1,6 +1,6 @@
 """Human-readable reporting: console summaries and markdown.
 
-Reports name the classification, not just PASS/FAIL, because "we could not
+Reports name the classification alongside PASS/FAIL, because "we could not
 reach PyPI" and "your quickstart is missing a step" require different people
 to do different things.
 """

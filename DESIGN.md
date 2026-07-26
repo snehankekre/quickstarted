@@ -8,7 +8,7 @@ verdict. LLM judges may eventually classify WHY a run failed; they will never
 decide WHETHER it failed. This keeps the tool falsifiable and keeps vendors
 (including Anthropic) out of the scoring path.
 
-## Attribution has to be enforced, not requested
+## Every page read goes through a tool the agent cannot bypass
 
 Agents act only through the Toolbelt (`bash` + `read_docs`), so every page read
 is recorded and failures attribute to a page.
@@ -65,7 +65,7 @@ measurement of the affordance itself.
 That question is currently argued without data. This is the only shape of tool
 that can answer it, because answering it requires running the task.
 
-## Replay mode is the floor, not a feature
+## Replay mode is a precondition
 
 Replay (documented commands verbatim, no LLM) is free, deterministic and
 CI-friendly, and it defines a floor: if replay fails, agent mode is noise. It
@@ -97,8 +97,8 @@ would quietly misreport what a sweep costs.
   out at all, so the isolation does not depend on name resolution.
 - HTML-to-text is a crude tag stripper, so markdown-native docs read better.
   That is itself a finding worth publishing.
-- Concurrency is per-attempt threads, not a scheduler; hosts are rate-limited
-  individually but there is no global budget governor.
+- Concurrency is per-attempt threads. Hosts are rate-limited individually, and
+  there is no global budget governor.
 - No pip/npm cache; every run cold-installs.
 - The Gemini adapter is written against the same Toolbelt contract but has not
   been run live; Claude and OpenAI have.

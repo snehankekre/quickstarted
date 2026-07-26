@@ -98,7 +98,7 @@ class OpenAIAgent:
                     model=self.model,
                     # The SDK types these as TypedDicts; ours are built at
                     # runtime and shared across adapters. Behaviour is covered
-                    # by live runs, not by these annotations.
+                    # by live runs rather than these annotations.
                     messages=messages,  # type: ignore[arg-type]
                     tools=TOOLS,  # type: ignore[arg-type]
                     max_completion_tokens=self.max_tokens,

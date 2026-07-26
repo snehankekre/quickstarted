@@ -68,7 +68,8 @@ That is the difference between a measurement and an accusation.
 
 ## What it does not do
 
-The proxy is a policy boundary, not a security product. It sees CONNECT targets
+The proxy enforces documentation policy. Do not mistake it for a security
+product. It sees CONNECT targets
 rather than URLs for HTTPS, so path-level attribution within an allowed host
 comes from `read_docs` rather than from traffic inspection. Container escape,
 kernel bugs, and anything a determined attacker would try are out of scope. The
