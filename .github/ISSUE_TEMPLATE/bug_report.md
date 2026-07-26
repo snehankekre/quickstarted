@@ -10,7 +10,7 @@ labels: bug
 
 **How to reproduce**
 
-The journey file, if you can share it, and the exact command:
+The task file, if you can share it, and the exact command:
 
 ```
 quickstarted run ... 

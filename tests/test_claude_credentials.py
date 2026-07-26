@@ -15,7 +15,7 @@ from quickstarted.agents.claude import (
     ClaudeAgent,
     resolve_api_key,
 )
-from quickstarted.journey import load_journey
+from quickstarted.task import load_task
 from quickstarted.trace import Trace
 
 
@@ -50,9 +50,9 @@ def test_missing_credentials_report_the_quickstarted_variable(tmp_path, monkeypa
         "success:\n"
         "  script: 'true'\n"
     )
-    journey = load_journey(path)
+    task = load_task(path)
     deadline = time.monotonic() + 30
-    outcome = ClaudeAgent().run(journey, Toolbelt(journey, None, Trace()), deadline)
+    outcome = ClaudeAgent().run(task, Toolbelt(task, None, Trace()), deadline)
     assert outcome.stop_reason == "error"
     assert KEY_ENV in outcome.detail
 

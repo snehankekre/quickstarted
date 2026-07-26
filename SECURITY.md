@@ -12,7 +12,7 @@ A quickstart that says `curl ... | bash` will be followed.
 | --- | --- | --- | --- |
 | `docker` | container | internal network; the only route out is the proxy sidecar | anything, including CI |
 | `seatbelt` (macOS) | reads of your home denied, writes confined to the workspace | all egress denied except the harness proxy port | local development |
-| `local` | none | none (proxy variables are advisory) | journeys and projects you wrote yourself |
+| `local` | none | none (proxy variables are advisory) | tasks and projects you wrote yourself |
 
 `quickstarted run` refuses to use `local` unless you pass `--allow-unenforced`.
 `quickstarted doctor` reports what the current machine can enforce.
@@ -45,4 +45,4 @@ somebody else's site is your decision to defend.
 
 Open a GitHub security advisory on the repository, or email the address in
 `pyproject.toml`. Please do not open a public issue for anything that would let
-a malicious journey escape a backend.
+a malicious task escape a backend.

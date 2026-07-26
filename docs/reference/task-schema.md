@@ -1,8 +1,8 @@
-# Journey schema
+# Task schema
 
-> Every field of a journey file, and what the loader rejects.
+> Every field of a task file, and what the loader rejects.
 
-A journey is YAML. Unknown keys under `budgets` and `network` are errors, so a
+A task is YAML. Unknown keys under `budgets` and `network` are errors, so a
 typo fails loudly instead of being ignored.
 
 ```yaml
@@ -42,6 +42,32 @@ replay:
 | `replay` | list of strings | no | The documented commands, for replay mode |
 | `network` | mapping | no | Hosts the shell may reach |
 | `budgets` | mapping | no | Limits on the agent phase |
+| `image` | string | no | Container image for the `docker` backend |
+
+## image
+
+The default image is `python:3.12-slim`, which has no Node, no Go, and no Rust.
+A task testing a JavaScript quickstart says so:
+
+```yaml
+name: vite-quickstart
+image: node:22-slim
+```
+
+Precedence is task, then `--image`, then the default, because one invocation of
+`quickstarted run tasks/*.yaml` covers a suite that mixes runtimes and a single
+flag cannot serve all of it.
+
+The resolved image is recorded in `results.json` and printed next to the
+backend. A pass rate is not comparable across base images, so the number is
+meaningless without it.
+
+`quickstarted validate` warns when a success script calls `npm`, `npx`, `node`,
+`pnpm`, `yarn`, or `bun` and no image is set, since that check would fail for a
+reason that has nothing to do with the documentation.
+
+The field is ignored by the `seatbelt` and `local` backends, which run on the
+host and use whatever is installed there.
 
 ## docs
 
@@ -97,11 +123,11 @@ of pass rates.
 ## Validation
 
 ```bash
-quickstarted validate journeys/*.yaml
+quickstarted validate tasks/*.yaml
 ```
 
 ```
-ok       journeys/duckdb-quickstart.yaml (duckdb-quickstart, replay+agent)
+ok       tasks/duckdb-quickstart.yaml (duckdb-quickstart, replay+agent)
 warning  pypi.org is declared a docs host, so the shell cannot reach it;
          installs that need it will fail. Add it under network.allow if that
          is intended.

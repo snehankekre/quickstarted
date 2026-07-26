@@ -16,7 +16,7 @@ import os
 import time
 from typing import Any
 
-from ..journey import Journey
+from ..task import Task
 from .base import AgentOutcome, Toolbelt
 from .prompt import BASH_DESCRIPTION, READ_DOCS_DESCRIPTION, SYSTEM, kickoff
 
@@ -62,7 +62,7 @@ class OpenAIAgent:
         self.name = f"openai:{model}" if model else "openai"
         self.model_reported = ""
 
-    def run(self, journey: Journey, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
+    def run(self, task: Task, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
         if not self.model:
             return AgentOutcome(
                 "error", 0, "openai adapter requires --model (no default is assumed)"
@@ -81,7 +81,7 @@ class OpenAIAgent:
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": kickoff(journey)},
+            {"role": "user", "content": kickoff(task)},
         ]
         input_tokens = output_tokens = cached = 0
 
@@ -90,7 +90,7 @@ class OpenAIAgent:
                 reason, turns, detail, input_tokens, output_tokens, 0, cached
             )
 
-        for turn in range(1, journey.budgets.max_turns + 1):
+        for turn in range(1, task.budgets.max_turns + 1):
             if time.monotonic() > deadline:
                 return outcome("timeout", turn - 1)
             try:
@@ -164,4 +164,4 @@ class OpenAIAgent:
                     {"role": "tool", "tool_call_id": call.id, "content": result}
                 )
 
-        return outcome("max_turns", journey.budgets.max_turns)
+        return outcome("max_turns", task.budgets.max_turns)

@@ -1,8 +1,8 @@
-# Example journey against a third-party project, as a template for the
+# Example task against a third-party project, as a template for the
 # public benchmark. Success asserts only local, deterministic facts.
 #
 # The demo request targets a package registry, not the documentation site.
-# Documentation hosts are unreachable from the shell by design, so a journey
+# Documentation hosts are unreachable from the shell by design, so a task
 # whose own example fetches its docs site fails on policy and reads like a
 # documentation gap.
 name: httpx-quickstart

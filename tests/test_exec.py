@@ -105,10 +105,10 @@ def test_seatbelt_scrubs_the_environment():
 
 
 def test_loopback_bypasses_the_proxy():
-    """Journeys start a local server and then query it.
+    """Tasks start a local server and then query it.
 
     Without NO_PROXY the request goes to the harness proxy, which refuses
-    localhost as an unlisted host, and a working journey fails on policy.
+    localhost as an unlisted host, and a working task fails on policy.
     """
     ex = LocalExecutor(proxy_url="http://127.0.0.1:9")
     try:

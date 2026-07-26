@@ -21,7 +21,7 @@ Full documentation: **https://snehankekre.com/quickstarted/**
 
 ## How it works
 
-You write a journey, in YAML. This one points at Streamlit's documentation:
+You write a task, in YAML. This one points at Streamlit's documentation:
 
 ```yaml
 name: streamlit-quickstart
@@ -49,7 +49,7 @@ Then you run an agent against it:
 ```
 pip install "quickstarted[claude]"
 export QUICKSTARTED_ANTHROPIC_API_KEY=...
-quickstarted run journeys/streamlit-quickstart.yaml --agent claude
+quickstarted run tasks/streamlit-quickstart.yaml --agent claude
 ```
 
 ```
@@ -93,7 +93,7 @@ command runs, the output contains the number on the page. If your quickstart
 ends with "you should see `200`", the check is `grep -q 200`.
 
 You can go stricter when it is worth it.
-[journeys/streamlit-quickstart.yaml](journeys/streamlit-quickstart.yaml) boots
+[tasks/streamlit-quickstart.yaml](tasks/streamlit-quickstart.yaml) boots
 the app headless and polls Streamlit's own health endpoint, which is about
 fifteen more lines and proves the app actually serves. That is a choice, not a
 requirement. Start with the two-line version.
@@ -105,7 +105,7 @@ tell a reader to type, and stops at the first failure. No model, no API key, no
 cost.
 
 ```
-quickstarted run journeys/streamlit-quickstart.yaml --agent replay
+quickstarted run tasks/streamlit-quickstart.yaml --agent replay
 ```
 
 Treat it as a floor to check on every push. If the documented commands are
@@ -120,7 +120,7 @@ The same docs and the same model can pass at 10:00 and fail at 10:05. One run
 is a sample. Use `--repeat` and read the rate:
 
 ```
-quickstarted run journeys/*.yaml --agent claude --repeat 5 --workers 3
+quickstarted run tasks/*.yaml --agent claude --repeat 5 --workers 3
 ```
 
 Every run is classified, and only two classifications say anything about your
@@ -132,7 +132,7 @@ documentation:
 | `docs_gap` | the agent finished, the check failed | yes |
 | `budget_exhausted` | out of turns, time, or tokens | no |
 | `infra_error` | rate limit, upstream 5xx, network failure | no |
-| `harness_error` | misconfigured journey, our bug | no |
+| `harness_error` | misconfigured task, our bug | no |
 | `agent_refusal` | model declined | no |
 
 Runs that produced no evidence are excluded from the numerator *and* the
@@ -146,11 +146,11 @@ scoring it would be the proxy metric this tool exists to replace. So
 quickstarted never scores affordances. It measures them:
 
 ```
-quickstarted run journeys/streamlit-quickstart.yaml --agent claude --repeat 10
-quickstarted run journeys/streamlit-quickstart.yaml --agent claude --repeat 10 --affordances none
+quickstarted run tasks/streamlit-quickstart.yaml --agent claude --repeat 10
+quickstarted run tasks/streamlit-quickstart.yaml --agent claude --repeat 10 --affordances none
 ```
 
-Same prompt, same journey, same model. The only difference is whether the
+Same prompt, same task, same model. The only difference is whether the
 agent could read `llms.txt` and `.md` variants. The difference in pass rate is
 a measurement of the affordance itself.
 
@@ -191,7 +191,7 @@ Two jobs, on two schedules. Replay on every push, because it is free:
 
 ```yaml
 - run: pip install quickstarted
-- run: quickstarted run journeys/*.yaml --agent replay --junit junit.xml
+- run: quickstarted run tasks/*.yaml --agent replay --junit junit.xml
 ```
 
 Agent mode on a schedule, or when a model ships, because it costs real tokens:
@@ -209,7 +209,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install "quickstarted[claude]"
-      - run: quickstarted run journeys/*.yaml --agent claude --repeat 3
+      - run: quickstarted run tasks/*.yaml --agent claude --repeat 3
              --out results --junit junit.xml
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -220,7 +220,7 @@ jobs:
           path: results/
 ```
 
-`quickstarted run` exits 1 when any journey fails, so either job can gate
+`quickstarted run` exits 1 when any task fails, so either job can gate
 merges. `results.json` is versioned (schema 1.0). JUnit XML reports a docs gap
 as a failure and infrastructure trouble as an error, so a rate limit does not
 read as a broken quickstart.
@@ -238,7 +238,7 @@ last run, which is a finding in its own right.
 It tells you whether a given model, on a given day, could get from your docs to
 a working result, and where it was reading when it could not. That is a lower
 bound on documentation quality. Nothing here measures whether your docs are
-pleasant, complete, or accurate beyond the journey you wrote, and there is no
+pleasant, complete, or accurate beyond the task you wrote, and there is no
 UI testing at all: if your product's button moved, this will not notice.
 [Doc Detective](https://github.com/doc-detective/doc-detective) is the tool for
 that, and the two answer different questions.

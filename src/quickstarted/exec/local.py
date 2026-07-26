@@ -2,7 +2,7 @@
 
 Commands run as your user, on your filesystem, with your network. Absolute
 paths reach your home directory and a command that ignores the proxy variables
-reaches any host. Useful for developing journeys against your own code; wrong
+reaches any host. Useful for developing tasks against your own code; wrong
 for anything you did not write.
 """
 

@@ -61,7 +61,7 @@ nav:
       - Your first run: getting-started/first-run.md
       - Agent mode in depth: getting-started/agent-mode.md
   - Guides:
-      - Writing journeys: guides/writing-journeys.md
+      - Writing tasks: guides/writing-tasks.md
       - Replay mode: guides/replay-mode.md
       - Sandboxing: guides/sandboxing.md
       - Pass rates: guides/pass-rates.md
@@ -70,7 +70,7 @@ nav:
       - Cost and budgets: guides/cost.md
   - Reference:
       - CLI: reference/cli.md
-      - Journey schema: reference/journey-schema.md
+      - Task schema: reference/task-schema.md
       - Results schema: reference/results.md
       - Trace events: reference/trace.md
       - Environment variables: reference/environment.md

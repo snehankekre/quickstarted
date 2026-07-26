@@ -1,4 +1,4 @@
-"""Running many journeys many times, and reporting rates rather than verdicts.
+"""Running many tasks many times, and reporting rates rather than verdicts.
 
 A single agent run is a sample, not a measurement. The same docs and the same
 model can pass at 10:00 and fail at 10:05, so a benchmark that publishes one
@@ -11,7 +11,7 @@ Two rules follow, and both are enforced here rather than left to the reader:
   numerator and the denominator alike, and reported separately, because they
   are not evidence about the documentation either way.
 * Nothing is aggregated across models. Pass rates for different models are
-  different measurements that happen to share a journey.
+  different measurements that happen to share a task.
 """
 
 from __future__ import annotations
@@ -24,14 +24,14 @@ from typing import Callable
 
 from .agents.base import Agent
 from .exec import resolve_backend
-from .journey import Journey
 from .pricing import PriceBook
-from .run import EVIDENTIAL, PASSED, RunResult, run_journey
+from .run import EVIDENTIAL, PASSED, RunResult, run_task
+from .task import Task
 
 
 @dataclass
-class JourneyStats:
-    journey: str
+class TaskStats:
+    task: str
     agent: str
     runs: list[RunResult] = field(default_factory=list)
 
@@ -104,7 +104,7 @@ class JourneyStats:
 
 @dataclass
 class SuiteResult:
-    stats: list[JourneyStats] = field(default_factory=list)
+    stats: list[TaskStats] = field(default_factory=list)
     duration: float = 0.0
     repeat: int = 1
     backend: str = ""
@@ -115,7 +115,7 @@ class SuiteResult:
 
     @property
     def all_passed(self) -> bool:
-        """CI gate: every journey passed every attempt that produced evidence."""
+        """CI gate: every task passed every attempt that produced evidence."""
         for stat in self.stats:
             if stat.pass_rate is None or stat.pass_rate < 1.0:
                 return False
@@ -137,7 +137,7 @@ class SuiteResult:
 
 
 def run_suite(
-    journeys: Sequence[Journey],
+    tasks: Sequence[Task],
     agent_factory: Callable[[], Agent],
     repeat: int = 1,
     workers: int = 1,
@@ -151,15 +151,15 @@ def run_suite(
 ) -> SuiteResult:
     start = time.monotonic()
     jobs = [
-        (journey, attempt)
-        for journey in journeys
+        (task, attempt)
+        for task in tasks
         for attempt in range(1, repeat + 1)
     ]
 
     def execute(job) -> RunResult:
-        journey, attempt = job
-        return run_journey(
-            journey,
+        task, attempt = job
+        return run_task(
+            task,
             agent_factory(),
             keep_sandbox=keep_sandbox,
             http_get=http_get,
@@ -184,17 +184,17 @@ def run_suite(
             if on_result:
                 on_result(result)
 
-    by_journey: dict[str, JourneyStats] = {}
+    by_task: dict[str, TaskStats] = {}
     order: list[str] = []
     for result in results:
-        key = f"{result.journey.name} {result.agent_name}"
-        if key not in by_journey:
-            by_journey[key] = JourneyStats(result.journey.name, result.agent_name)
+        key = f"{result.task.name} {result.agent_name}"
+        if key not in by_task:
+            by_task[key] = TaskStats(result.task.name, result.agent_name)
             order.append(key)
-        by_journey[key].runs.append(result)
+        by_task[key].runs.append(result)
 
     return SuiteResult(
-        stats=[by_journey[k] for k in order],
+        stats=[by_task[k] for k in order],
         duration=time.monotonic() - start,
         repeat=repeat,
         # The resolved backend, not the request: "auto" in a published result

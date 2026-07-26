@@ -23,7 +23,7 @@ jobs:
       - run: pip install quickstarted
       - run: quickstarted doctor
       - run: |
-          quickstarted run journeys/*.yaml \
+          quickstarted run tasks/*.yaml \
             --agent replay --backend docker \
             --out results --junit junit.xml
       - uses: actions/upload-artifact@v4
@@ -33,7 +33,7 @@ jobs:
           path: results/
 ```
 
-`quickstarted run` exits 1 when any journey fails, so the job gates the merge.
+`quickstarted run` exits 1 when any task fails, so the job gates the merge.
 GitHub runners have Docker, so `--backend docker` gets you an enforced boundary
 at no extra cost.
 
@@ -61,7 +61,7 @@ jobs:
       - env:
           QUICKSTARTED_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          quickstarted run journeys/*.yaml \
+          quickstarted run tasks/*.yaml \
             --agent claude --repeat 3 --workers 2 \
             --backend docker --out results --junit junit.xml
       - uses: actions/upload-artifact@v4
@@ -79,14 +79,14 @@ scheduled job. One nightly failure means very little on its own.
 ```yaml
 - uses: snehankekre/quickstarted@v0
   with:
-    journeys: journeys/*.yaml
+    tasks: tasks/*.yaml
     agent: claude
     repeat: "3"
     backend: docker
     junit: junit.xml
 ```
 
-Inputs: `journeys`, `agent`, `model`, `repeat`, `workers`, `backend`,
+Inputs: `tasks`, `agent`, `model`, `repeat`, `workers`, `backend`,
 `affordances`, `python-version`, `out`, `junit`.
 
 ## Rate limits should not read as broken docs
@@ -98,13 +98,13 @@ whatever dashboard reads the file.
 If you would rather a job go red whenever any run failed to produce evidence:
 
 ```bash
-quickstarted run journeys/*.yaml --agent claude --strict-inconclusive
+quickstarted run tasks/*.yaml --agent claude --strict-inconclusive
 ```
 
 ## Caching documentation between runs
 
 ```bash
-quickstarted run journeys/*.yaml --agent claude \
+quickstarted run tasks/*.yaml --agent claude \
   --cache-dir .quickstarted-cache --refresh
 ```
 
@@ -119,7 +119,7 @@ better citizen to the sites you are fetching from.
 
 ## Machine-readable output
 
-`--out` writes `results.json` (schema 1.0), a per-journey `trace.jsonl`, a
+`--out` writes `results.json` (schema 1.0), a per-task `trace.jsonl`, a
 Markdown report per run, and `suite.md`. Fields are added but not repurposed,
 and the schema version goes up when that stops being true. See
 [results schema](../reference/results.md).

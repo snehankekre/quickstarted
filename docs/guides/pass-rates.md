@@ -9,12 +9,12 @@ days. A benchmark that publishes one run per project publishes noise with a
 confident face on it.
 
 ```bash
-quickstarted run journeys/*.yaml --agent claude --repeat 5 --workers 3
+quickstarted run tasks/*.yaml --agent claude --repeat 5 --workers 3
 ```
 
 ```
 ==============================================================
-Suite: 3 journey(s), repeat=5
+Suite: 3 task(s), repeat=5
   polars-quickstart (claude:claude-opus-5): pass rate 100% [5/5 evidential of 5 run(s)]
   duckdb-quickstart (claude:claude-opus-5): pass rate 60% [3/5 evidential of 5 run(s)]
       failed after: https://duckdb.org/docs/stable/clients/python/overview (2x)
@@ -39,7 +39,7 @@ Every run gets exactly one.
 | `docs_gap` | the agent finished, the success script failed | yes |
 | `budget_exhausted` | out of turns, wall clock, or tokens | no |
 | `infra_error` | rate limit, upstream 5xx, network failure | no |
-| `harness_error` | misconfigured journey, missing credentials, our bug | no |
+| `harness_error` | misconfigured task, missing credentials, our bug | no |
 | `agent_refusal` | the model declined the task | no |
 
 Only the first two say anything about your documentation. The rest are excluded
@@ -52,7 +52,7 @@ documentation because your API key was throttled.
 ## No evidence is not zero
 
 ```
-  some-journey (claude:claude-opus-5): pass rate no evidence [0/0 evidential of 3 run(s)]
+  some-task (claude:claude-opus-5): pass rate no evidence [0/0 evidential of 3 run(s)]
       discarded: infra_error=3
 ```
 
@@ -64,14 +64,14 @@ a job still goes red and someone looks at it.
 ## Comparing models
 
 Pass rates are never aggregated across models. Two models running the same
-journey are two measurements that happen to share a file.
+task are two measurements that happen to share a file.
 
 ```bash
-quickstarted run journeys/duckdb-quickstart.yaml --agent claude --repeat 10 --out results/claude
-quickstarted run journeys/duckdb-quickstart.yaml --agent openai --model gpt-5 --repeat 10 --out results/gpt5
+quickstarted run tasks/duckdb-quickstart.yaml --agent claude --repeat 10 --out results/claude
+quickstarted run tasks/duckdb-quickstart.yaml --agent openai --model gpt-5 --repeat 10 --out results/gpt5
 ```
 
-If a single journey somehow sees more than one served model, the summary warns
+If a single task somehow sees more than one served model, the summary warns
 and tells you not to compare those runs.
 
 ## Parallelism

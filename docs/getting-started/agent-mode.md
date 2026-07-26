@@ -24,9 +24,9 @@ documentation that tells a newcomer nothing.
 ## Choosing a model
 
 ```bash
-quickstarted run journeys/httpx.yaml --agent claude --model claude-opus-5
-quickstarted run journeys/httpx.yaml --agent openai --model gpt-5
-quickstarted run journeys/httpx.yaml --agent gemini --model gemini-2.5-pro
+quickstarted run tasks/httpx.yaml --agent claude --model claude-opus-5
+quickstarted run tasks/httpx.yaml --agent openai --model gpt-5
+quickstarted run tasks/httpx.yaml --agent gemini --model gemini-2.5-pro
 ```
 
 The Claude adapter defaults to `claude-opus-5`. The OpenAI and Gemini adapters
@@ -48,7 +48,7 @@ reading. Everything else is in the artifacts. `--out results/` writes the full
 trace and a Markdown report:
 
 ```bash
-quickstarted run journeys/httpx.yaml --agent claude --out results/
+quickstarted run tasks/httpx.yaml --agent claude --out results/
 ```
 
 `results/httpx-quickstart/trace.jsonl` has every tool call, every page fetch
@@ -57,7 +57,7 @@ with a content hash, every egress decision, and per-turn token usage.
 
 ## Cost
 
-Agent runs cost real tokens. A short journey is cents; the numbers above are
+Agent runs cost real tokens. A short task is cents; the numbers above are
 typical. Two controls keep a sweep bounded:
 
 ```yaml
@@ -71,5 +71,5 @@ Token budgets need no price list and cannot drift when a vendor changes rates.
 If you want dollars, supply your own price book with `--prices`. See
 [Cost and budgets](../guides/cost.md).
 
-Next: the rules for [writing journeys](../guides/writing-journeys.md) that
+Next: the rules for [writing tasks](../guides/writing-tasks.md) that
 measure documentation instead of luck.

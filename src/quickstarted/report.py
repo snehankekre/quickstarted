@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from .pricing import PriceBook
 from .run import DOCS_GAP, PASSED, RunResult
-from .suite import JourneyStats, SuiteResult
+from .suite import SuiteResult, TaskStats
 
 _LABELS = {
     PASSED: "PASS",
@@ -40,12 +40,13 @@ def _token_line(outcome) -> str:
 
 def console_summary(result: RunResult) -> str:
     lines = [
-        f"[{label(result)}] {result.journey.name} ({result.agent_name})",
+        f"[{label(result)}] {result.task.name} ({result.agent_name})",
         f"  classification: {result.classification}",
         f"  stop reason: {result.outcome.stop_reason}"
         + (f" ({result.outcome.detail})" if result.outcome.detail else ""),
         f"  turns: {result.outcome.turns}, duration: {result.duration:.1f}s",
         f"  backend: {result.backend}"
+        + (f" ({result.image})" if result.image else "")
         + ("" if result.enforced else "  [UNENFORCED: policy is advisory here]"),
     ]
     tokens = _token_line(result.outcome)
@@ -72,12 +73,12 @@ def console_summary(result: RunResult) -> str:
 
 def suite_summary(suite: SuiteResult, prices: PriceBook | None = None) -> str:
     prices = prices or PriceBook()
-    lines = ["", "=" * 62, f"Suite: {len(suite.stats)} journey(s), repeat={suite.repeat}"]
+    lines = ["", "=" * 62, f"Suite: {len(suite.stats)} task(s), repeat={suite.repeat}"]
     for stat in suite.stats:
         rate = stat.pass_rate
         shown = "no evidence" if rate is None else f"{rate:.0%}"
         lines.append(
-            f"  {stat.journey} ({stat.agent}): pass rate {shown} "
+            f"  {stat.task} ({stat.agent}): pass rate {shown} "
             f"[{stat.passes}/{len(stat.evidential)} evidential of {stat.attempts} run(s)]"
         )
         if stat.discarded:
@@ -85,7 +86,7 @@ def suite_summary(suite: SuiteResult, prices: PriceBook | None = None) -> str:
             lines.append(f"      discarded: {detail}")
         if len(stat.models_seen) > 1:
             lines.append(
-                f"      WARNING: more than one model served this journey "
+                f"      WARNING: more than one model served this task "
                 f"({', '.join(stat.models_seen)}); do not compare these runs"
             )
         for page, count in list(stat.suspect_pages.items())[:3]:
@@ -105,12 +106,12 @@ def suite_summary(suite: SuiteResult, prices: PriceBook | None = None) -> str:
 
 def markdown_report(result: RunResult) -> str:
     out = [
-        f"# quickstarted: {result.journey.name}",
+        f"# quickstarted: {result.task.name}",
         "",
         f"**Result: {label(result)}** (`{result.classification}`, agent: "
         f"`{result.agent_name}`)",
         "",
-        f"- Goal: {result.journey.goal}",
+        f"- Goal: {result.task.goal}",
         f"- Stop reason: {result.outcome.stop_reason}"
         + (f" ({result.outcome.detail})" if result.outcome.detail else ""),
         f"- Turns: {result.outcome.turns}",
@@ -175,12 +176,12 @@ def markdown_suite_report(suite: SuiteResult, prices: PriceBook | None = None) -
     out = [
         "# quickstarted suite",
         "",
-        f"- Journeys: {len(suite.stats)}",
-        f"- Attempts per journey: {suite.repeat}",
+        f"- Tasks: {len(suite.stats)}",
+        f"- Attempts per task: {suite.repeat}",
         f"- Backend: `{suite.backend}`",
         f"- Duration: {suite.duration:.1f}s",
         "",
-        "| Journey | Agent | Pass rate | Evidential | Discarded |",
+        "| Task | Agent | Pass rate | Evidential | Discarded |",
         "| --- | --- | --- | --- | --- |",
     ]
     for stat in suite.stats:
@@ -190,7 +191,7 @@ def markdown_suite_report(suite: SuiteResult, prices: PriceBook | None = None) -
             ", ".join(f"{k}={v}" for k, v in sorted(stat.discarded.items())) or "none"
         )
         out.append(
-            f"| {stat.journey} | `{stat.agent}` | {shown} | "
+            f"| {stat.task} | `{stat.agent}` | {shown} | "
             f"{stat.passes}/{len(stat.evidential)} | {discarded} |"
         )
     out.append("")
@@ -201,6 +202,6 @@ def markdown_suite_report(suite: SuiteResult, prices: PriceBook | None = None) -
     return "\n".join(out)
 
 
-def stats_line(stat: JourneyStats) -> str:
+def stats_line(stat: TaskStats) -> str:
     rate = stat.pass_rate
-    return f"{stat.journey}: {'n/a' if rate is None else f'{rate:.0%}'}"
+    return f"{stat.task}: {'n/a' if rate is None else f'{rate:.0%}'}"

@@ -2,8 +2,8 @@
 
 > Point a model at real documentation and watch whether it can finish.
 
-A journey states a goal, where the documentation lives, and a script that
-decides whether the goal was reached. Save this as `journeys/httpx.yaml`:
+A task states a goal, where the documentation lives, and a script that
+decides whether the goal was reached. Save this as `tasks/httpx.yaml`:
 
 ```yaml
 name: httpx-quickstart
@@ -31,11 +31,11 @@ status code the page says you will see.
 Check that it parses:
 
 ```bash
-quickstarted validate journeys/httpx.yaml
+quickstarted validate tasks/httpx.yaml
 ```
 
 ```
-ok       journeys/httpx.yaml (httpx-quickstart, agent-only)
+ok       tasks/httpx.yaml (httpx-quickstart, agent-only)
 ```
 
 ## Run it
@@ -43,7 +43,7 @@ ok       journeys/httpx.yaml (httpx-quickstart, agent-only)
 ```bash
 pip install "quickstarted[claude]"
 export QUICKSTARTED_ANTHROPIC_API_KEY=sk-ant-...
-quickstarted run journeys/httpx.yaml --agent claude
+quickstarted run tasks/httpx.yaml --agent claude
 ```
 
 ```
@@ -113,7 +113,7 @@ replay:
 ```
 
 ```bash
-quickstarted run journeys/httpx.yaml --agent replay
+quickstarted run tasks/httpx.yaml --agent replay
 ```
 
 If the documented commands are broken, no reader stands a chance, and an agent

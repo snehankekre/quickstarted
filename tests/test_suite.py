@@ -7,7 +7,6 @@ from xml.etree import ElementTree as ET
 import pytest
 
 from quickstarted.agents.base import AgentOutcome
-from quickstarted.journey import load_journey
 from quickstarted.pricing import ModelPrice, PriceBook
 from quickstarted.results import SCHEMA_VERSION, junit_xml, suite_document
 from quickstarted.run import (
@@ -20,10 +19,11 @@ from quickstarted.run import (
     ScoreResult,
     classify,
 )
-from quickstarted.suite import JourneyStats, SuiteResult, run_suite
+from quickstarted.suite import SuiteResult, TaskStats, run_suite
+from quickstarted.task import load_task
 from quickstarted.trace import Trace
 
-JOURNEY = textwrap.dedent(
+TASK = textwrap.dedent(
     """
     name: demo
     goal: create done.txt
@@ -40,18 +40,18 @@ JOURNEY = textwrap.dedent(
 
 
 @pytest.fixture
-def journey(tmp_path):
+def task(tmp_path):
     path = tmp_path / "j.yaml"
-    path.write_text(JOURNEY)
-    return load_journey(path)
+    path.write_text(TASK)
+    return load_task(path)
 
 
-def _result(journey, classification, attempt=1, passed=None, tokens=(0, 0, 0, 0)):
+def _result(task, classification, attempt=1, passed=None, tokens=(0, 0, 0, 0)):
     if passed is None:
         passed = classification == PASSED
     outcome = AgentOutcome("completed", 3, "", *tokens)
     return RunResult(
-        journey=journey,
+        task=task,
         agent_name="claude:test",
         outcome=outcome,
         score=ScoreResult(passed, 0 if passed else 1, "out"),
@@ -109,12 +109,12 @@ def test_blocked_registry_is_infrastructure():
 # -- statistics --------------------------------------------------------
 
 
-def test_pass_rate_excludes_inconclusive_runs(journey):
-    stat = JourneyStats("demo", "claude:test")
+def test_pass_rate_excludes_inconclusive_runs(task):
+    stat = TaskStats("demo", "claude:test")
     stat.runs = [
-        _result(journey, PASSED),
-        _result(journey, DOCS_GAP),
-        _result(journey, INFRA_ERROR),  # must not count either way
+        _result(task, PASSED),
+        _result(task, DOCS_GAP),
+        _result(task, INFRA_ERROR),  # must not count either way
     ]
     assert stat.attempts == 3
     assert len(stat.evidential) == 2
@@ -122,19 +122,19 @@ def test_pass_rate_excludes_inconclusive_runs(journey):
     assert stat.discarded == {INFRA_ERROR: 1}
 
 
-def test_pass_rate_is_unknown_when_nothing_was_evidence(journey):
-    stat = JourneyStats("demo", "claude:test")
-    stat.runs = [_result(journey, INFRA_ERROR), _result(journey, BUDGET_EXHAUSTED)]
+def test_pass_rate_is_unknown_when_nothing_was_evidence(task):
+    stat = TaskStats("demo", "claude:test")
+    stat.runs = [_result(task, INFRA_ERROR), _result(task, BUDGET_EXHAUSTED)]
     assert stat.pass_rate is None, "no evidence must not read as 0% pass"
 
 
-def test_ci_gate_fails_when_evidence_is_absent(journey):
-    stat = JourneyStats("demo", "claude:test")
-    stat.runs = [_result(journey, INFRA_ERROR)]
+def test_ci_gate_fails_when_evidence_is_absent(task):
+    stat = TaskStats("demo", "claude:test")
+    stat.runs = [_result(task, INFRA_ERROR)]
     assert SuiteResult(stats=[stat]).all_passed is False
 
 
-def test_repeat_produces_a_rate_not_a_verdict(journey, monkeypatch):
+def test_repeat_produces_a_rate_not_a_verdict(task, monkeypatch):
     import quickstarted.transport as transport
 
     monkeypatch.setattr(
@@ -146,13 +146,13 @@ def test_repeat_produces_a_rate_not_a_verdict(journey, monkeypatch):
     )
     from quickstarted.agents.replay import ReplayAgent
 
-    suite = run_suite([journey], lambda: ReplayAgent(), repeat=3, backend="local")
+    suite = run_suite([task], lambda: ReplayAgent(), repeat=3, backend="local")
     assert suite.stats[0].attempts == 3
     assert suite.stats[0].pass_rate == 1.0
     assert [r.attempt for r in suite.stats[0].runs] == [1, 2, 3]
 
 
-def test_parallel_workers_produce_the_same_totals(journey, monkeypatch):
+def test_parallel_workers_produce_the_same_totals(task, monkeypatch):
     import quickstarted.transport as transport
 
     monkeypatch.setattr(
@@ -165,7 +165,7 @@ def test_parallel_workers_produce_the_same_totals(journey, monkeypatch):
     from quickstarted.agents.replay import ReplayAgent
 
     suite = run_suite(
-        [journey], lambda: ReplayAgent(), repeat=4, workers=4, backend="local"
+        [task], lambda: ReplayAgent(), repeat=4, workers=4, backend="local"
     )
     assert suite.stats[0].attempts == 4
     assert suite.stats[0].pass_rate == 1.0
@@ -174,16 +174,16 @@ def test_parallel_workers_produce_the_same_totals(journey, monkeypatch):
 # -- pricing -----------------------------------------------------------
 
 
-def test_no_price_book_means_no_invented_dollars(journey):
-    stat = JourneyStats("demo", "claude:test")
-    stat.runs = [_result(journey, PASSED, tokens=(100, 200, 0, 0))]
+def test_no_price_book_means_no_invented_dollars(task):
+    stat = TaskStats("demo", "claude:test")
+    stat.runs = [_result(task, PASSED, tokens=(100, 200, 0, 0))]
     assert stat.cost(PriceBook()) is None
 
 
-def test_cost_uses_supplied_rates(journey):
+def test_cost_uses_supplied_rates(task):
     prices = PriceBook({"claude-test-1": ModelPrice(input=1.0, output=2.0, cache_read=0.1)})
-    stat = JourneyStats("demo", "claude:test")
-    stat.runs = [_result(journey, PASSED, tokens=(1_000_000, 1_000_000, 0, 1_000_000))]
+    stat = TaskStats("demo", "claude:test")
+    stat.runs = [_result(task, PASSED, tokens=(1_000_000, 1_000_000, 0, 1_000_000))]
     assert stat.cost(prices) == pytest.approx(3.1)
 
 
@@ -198,23 +198,23 @@ def test_price_book_from_file(tmp_path):
 # -- machine-readable output -------------------------------------------
 
 
-def test_results_document_is_versioned_and_complete(journey):
-    stat = JourneyStats("demo", "claude:test")
-    stat.runs = [_result(journey, PASSED), _result(journey, DOCS_GAP, attempt=2)]
+def test_results_document_is_versioned_and_complete(task):
+    stat = TaskStats("demo", "claude:test")
+    stat.runs = [_result(task, PASSED), _result(task, DOCS_GAP, attempt=2)]
     doc = suite_document(SuiteResult(stats=[stat], repeat=2, backend="seatbelt"))
     assert doc["schema_version"] == SCHEMA_VERSION
-    assert doc["journeys"][0]["pass_rate"] == 0.5
-    assert doc["journeys"][0]["models_reported"] == ["claude-test-1"]
-    assert len(doc["journeys"][0]["runs"]) == 2
-    assert doc["journeys"][0]["runs"][0]["enforced"] is True
+    assert doc["tasks"][0]["pass_rate"] == 0.5
+    assert doc["tasks"][0]["models_reported"] == ["claude-test-1"]
+    assert len(doc["tasks"][0]["runs"]) == 2
+    assert doc["tasks"][0]["runs"][0]["enforced"] is True
     json.dumps(doc)  # must be serializable
 
 
-def test_junit_separates_failures_from_errors(journey):
-    stat = JourneyStats("demo", "claude:test")
+def test_junit_separates_failures_from_errors(task):
+    stat = TaskStats("demo", "claude:test")
     stat.runs = [
-        _result(journey, DOCS_GAP),
-        _result(journey, INFRA_ERROR, attempt=2),
+        _result(task, DOCS_GAP),
+        _result(task, INFRA_ERROR, attempt=2),
     ]
     root = ET.fromstring(junit_xml(SuiteResult(stats=[stat], repeat=2)))
     # A docs gap is a test failure; a rate limit is an error, not a verdict.
@@ -223,7 +223,7 @@ def test_junit_separates_failures_from_errors(journey):
 
 
 def test_policy_blocked_install_is_our_bug_not_a_docs_gap():
-    """The proxy refusing a documented command means the journey is misdeclared."""
+    """The proxy refusing a documented command means the task is misdeclared."""
     trace = Trace()
     trace.add("egress_blocked", host="pypi.org", reason="docs_host_requires_read_docs")
     outcome = AgentOutcome("command_failed", 1, "replay step 1 failed: pip install x")
@@ -237,7 +237,7 @@ def test_unlisted_host_block_on_failure_is_a_harness_error():
     assert classify(outcome, ScoreResult(False, 1, ""), trace) == HARNESS_ERROR
 
 
-def test_suite_records_the_resolved_backend(journey, monkeypatch):
+def test_suite_records_the_resolved_backend(task, monkeypatch):
     """'auto' in a published result says nothing about what was enforced."""
     import quickstarted.transport as transport
 
@@ -251,6 +251,6 @@ def test_suite_records_the_resolved_backend(journey, monkeypatch):
     from quickstarted.agents.replay import ReplayAgent
     from quickstarted.exec import resolve_backend
 
-    suite = run_suite([journey], lambda: ReplayAgent(), backend="auto")
+    suite = run_suite([task], lambda: ReplayAgent(), backend="auto")
     assert suite.backend == resolve_backend("auto")
     assert suite.backend != "auto"

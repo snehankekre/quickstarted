@@ -52,7 +52,7 @@ documentation on GitHub raw URLs alongside their releases. Naming a host under
 attribution for that host.
 
 The trade is recorded, not hidden. `quickstarted validate` reports it, and the
-journey's `attribution_gaps` names the host, so anyone reading a result knows
+task's `attribution_gaps` names the host, so anyone reading a result knows
 which pages might have been read without appearing in the list.
 
 ## A second dividend

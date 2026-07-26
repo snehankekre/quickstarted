@@ -1,6 +1,6 @@
 """Run orchestration: setup, agent, deterministic scoring, classification.
 
-Pass/fail is decided by the journey's success script exit code, run by the
+Pass/fail is decided by the task's success script exit code, run by the
 harness after the agent stops. The agent's own opinion of whether it finished
 is recorded but never trusted for scoring.
 
@@ -18,8 +18,8 @@ from dataclasses import dataclass
 from .agents.base import Agent, AgentOutcome, Toolbelt
 from .docs import DocsClient, affordance_summary
 from .exec import ExecutorError, make_executor, needs_host_proxy, resolve_backend
-from .journey import Journey
 from .net.proxy import EgressProxy
+from .task import Task
 from .trace import Trace
 
 #: Only PASS and DOCS_GAP are statements about the documentation. Everything
@@ -55,7 +55,7 @@ class ScoreResult:
 
 @dataclass
 class RunResult:
-    journey: Journey
+    task: Task
     agent_name: str
     outcome: AgentOutcome
     score: ScoreResult | None
@@ -68,6 +68,9 @@ class RunResult:
     attempt: int = 1
     model_reported: str = ""
     affordance_policy: str = "all"
+    #: Container image actually used, empty for backends that have none. A pass
+    #: rate is not comparable across base images, so it goes in the record.
+    image: str = ""
 
     @property
     def passed(self) -> bool:
@@ -114,7 +117,7 @@ def classify(outcome: AgentOutcome, score: ScoreResult | None, trace: Trace) -> 
         return INFRA_ERROR
     blocked = trace.of_type("egress_blocked")
     # Documented commands that died because our own policy refused their
-    # traffic say the journey's network allowlist is wrong, not the docs.
+    # traffic say the task's network allowlist is wrong, not the docs.
     if blocked and reason == "command_failed":
         return HARNESS_ERROR
     if any(e.data.get("reason") == "not_allowlisted" for e in blocked):
@@ -122,8 +125,8 @@ def classify(outcome: AgentOutcome, score: ScoreResult | None, trace: Trace) -> 
     return DOCS_GAP
 
 
-def run_journey(
-    journey: Journey,
+def run_task(
+    task: Task,
     agent: Agent,
     keep_sandbox: bool = False,
     http_get=None,
@@ -141,9 +144,9 @@ def run_journey(
 
     if needs_host_proxy(backend):
         proxy = EgressProxy(
-            network_allow=journey.network_allow,
-            docs_hosts=journey.docs_allow,
-            explicit_allow=journey.network_explicit,
+            network_allow=task.network_allow,
+            docs_hosts=task.docs_allow,
+            explicit_allow=task.network_explicit,
             trace=trace,
         )
         proxy.start()
@@ -153,9 +156,11 @@ def run_journey(
             backend,
             keep=keep_sandbox,
             proxy_url=proxy.url if proxy else None,
-            network_allow=journey.network_allow,
-            docs_hosts=journey.docs_allow,
-            image=image,
+            network_allow=task.network_allow,
+            docs_hosts=task.docs_allow,
+            # The task wins: one suite mixes a Python quickstart and a Node one,
+            # so a single --image cannot serve both.
+            image=task.image or image,
             trace=trace,
         )
     except ExecutorError as exc:
@@ -163,16 +168,17 @@ def run_journey(
             proxy.stop()
         trace.add("run_end", stop_reason="error", passed=False)
         return RunResult(
-            journey, agent.name, AgentOutcome("error", 0, str(exc)), None, trace,
+            task, agent.name, AgentOutcome("error", 0, str(exc)), None, trace,
             time.monotonic() - start, "", backend, False, HARNESS_ERROR, attempt,
         )
 
     trace.add(
         "run_start",
-        journey=journey.name,
+        task=task.name,
         agent=agent.name,
         backend=backend,
         enforced=executor.enforced,
+        image=getattr(executor, "image", ""),
         attempt=attempt,
         affordance_policy=docs.affordances,
     )
@@ -181,8 +187,8 @@ def run_journey(
         # Recorded as context for whoever reads a failure, and as the variable
         # for an ablation. Never part of the score.
         trace.add(
-            "affordances", entrypoint=journey.docs_entrypoint,
-            found=affordance_summary(docs.probe(journey.docs_entrypoint)),
+            "affordances", entrypoint=task.docs_entrypoint,
+            found=affordance_summary(docs.probe(task.docs_entrypoint)),
         )
 
     def finish(outcome: AgentOutcome, score: ScoreResult | None) -> RunResult:
@@ -194,17 +200,18 @@ def run_journey(
             classification=classification,
         )
         return RunResult(
-            journey, agent.name, outcome, score, trace, time.monotonic() - start,
+            task, agent.name, outcome, score, trace, time.monotonic() - start,
             str(executor.root), backend, executor.enforced, classification, attempt,
             getattr(agent, "model_reported", ""), docs.affordances,
+            getattr(executor, "image", ""),
         )
 
     try:
-        for command in journey.setup:
+        for command in task.setup:
             result = executor.run(
                 command,
-                timeout=journey.budgets.max_command_seconds,
-                max_output_chars=journey.budgets.max_output_chars,
+                timeout=task.budgets.max_command_seconds,
+                max_output_chars=task.budgets.max_output_chars,
             )
             trace.add(
                 "setup", command=command, exit_code=result.exit_code,
@@ -215,14 +222,14 @@ def run_journey(
                     AgentOutcome("error", 0, f"setup command failed: {command}"), None
                 )
 
-        toolbelt = Toolbelt(journey, executor, trace, docs=docs, http_get=http_get)
-        deadline = time.monotonic() + journey.budgets.max_seconds
-        outcome = agent.run(journey, toolbelt, deadline)
+        toolbelt = Toolbelt(task, executor, trace, docs=docs, http_get=http_get)
+        deadline = time.monotonic() + task.budgets.max_seconds
+        outcome = agent.run(task, toolbelt, deadline)
 
         check = executor.run(
-            journey.success_script,
-            timeout=journey.budgets.max_command_seconds,
-            max_output_chars=journey.budgets.max_output_chars,
+            task.success_script,
+            timeout=task.budgets.max_command_seconds,
+            max_output_chars=task.budgets.max_output_chars,
         )
         score = ScoreResult(
             passed=check.exit_code == 0,

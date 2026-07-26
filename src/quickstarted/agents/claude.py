@@ -18,7 +18,7 @@ import random
 import time
 from typing import Any
 
-from ..journey import Journey
+from ..task import Task
 from .base import AgentOutcome, Toolbelt
 from .prompt import READ_DOCS_DESCRIPTION, SYSTEM
 from .prompt import kickoff as build_kickoff
@@ -35,7 +35,7 @@ FALLBACK_KEY_ENV = "ANTHROPIC_API_KEY"
 
 
 class _Usage:
-    """Running token totals for one journey.
+    """Running token totals for one task.
 
     The API reports cached prompt tokens outside `input_tokens`, so a run with
     prompt caching on looks nearly free if you only add up that field. All four
@@ -99,7 +99,7 @@ class ClaudeAgent:
         #: time, and a pass-rate trend across a silent change is meaningless.
         self.model_reported = ""
 
-    def run(self, journey: Journey, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
+    def run(self, task: Task, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
         try:
             import anthropic
         except ImportError:
@@ -129,7 +129,7 @@ class ClaudeAgent:
             {"type": "bash_20250124", "name": "bash"},
             _READ_DOCS_TOOL,
         ]
-        kickoff = build_kickoff(journey)
+        kickoff = build_kickoff(task)
         messages: list[dict[str, Any]] = [{"role": "user", "content": kickoff}]
         used = _Usage()
 
@@ -186,10 +186,10 @@ class ClaudeAgent:
                 time.sleep(delay)
             return None, last
 
-        for turn in range(1, journey.budgets.max_turns + 1):
+        for turn in range(1, task.budgets.max_turns + 1):
             if time.monotonic() > deadline:
                 return outcome("timeout", turn - 1)
-            cap = journey.budgets.max_tokens
+            cap = task.budgets.max_tokens
             if cap and used.total >= cap:
                 return outcome("token_budget", turn - 1, f"token budget {cap} exhausted")
 
@@ -239,4 +239,4 @@ class ClaudeAgent:
                 )
             messages.append({"role": "user", "content": results})
 
-        return outcome("max_turns", journey.budgets.max_turns)
+        return outcome("max_turns", task.budgets.max_turns)

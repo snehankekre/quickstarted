@@ -13,15 +13,15 @@ changes.
 ## The ablation
 
 ```bash
-quickstarted run journeys/streamlit-quickstart.yaml --agent claude --repeat 10
-quickstarted run journeys/streamlit-quickstart.yaml --agent claude --repeat 10 --affordances none
+quickstarted run tasks/streamlit-quickstart.yaml --agent claude --repeat 10
+quickstarted run tasks/streamlit-quickstart.yaml --agent claude --repeat 10 --affordances none
 ```
 
 `--affordances none` blocks `llms.txt`, `llms-full.txt`, and `.md` variants at
 the fetch layer. The agent gets an ordinary "not available" response and
 carries on with the regular pages.
 
-Everything else is held constant. The prompt is byte-identical, the journey is
+Everything else is held constant. The prompt is byte-identical, the task is
 the same file, the model is pinned. The only difference between the two runs is
 whether the affordance existed for the agent, so the difference in pass rate
 is attributable to the affordance.
@@ -32,7 +32,7 @@ five-attempt samples is noise.
 ## Probing without changing anything
 
 ```bash
-quickstarted run journeys/streamlit-quickstart.yaml --agent claude --probe-affordances
+quickstarted run tasks/streamlit-quickstart.yaml --agent claude --probe-affordances
 ```
 
 This records what exists, with sizes, and changes nothing about the run:

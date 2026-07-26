@@ -20,12 +20,14 @@ from .pricing import PriceBook
 from .run import PASSED, RunResult
 from .suite import SuiteResult
 
-SCHEMA_VERSION = "1.0"
+#: 2.0 renamed the `journey`/`journeys` keys to `task`/`tasks`. Nothing else
+#: about the document changed, so a 1.0 consumer needs only that substitution.
+SCHEMA_VERSION = "2.0"
 
 
 def _run_document(run: RunResult) -> dict:
     return {
-        "journey": run.journey.name,
+        "task": run.task.name,
         "attempt": run.attempt,
         "agent": run.agent_name,
         "model_reported": run.model_reported,
@@ -37,6 +39,7 @@ def _run_document(run: RunResult) -> dict:
         "duration_seconds": round(run.duration, 2),
         "backend": run.backend,
         "enforced": run.enforced,
+        "image": run.image,
         "docs_pages_read": run.trace.fetched_urls(),
         "suspect_page": run.suspect_page,
         "docs_bypass_attempts": run.bypass_attempts,
@@ -56,11 +59,11 @@ def _run_document(run: RunResult) -> dict:
 
 def suite_document(suite: SuiteResult, prices: PriceBook | None = None) -> dict:
     prices = prices or PriceBook()
-    journeys = []
+    tasks = []
     for stat in suite.stats:
-        journeys.append(
+        tasks.append(
             {
-                "journey": stat.journey,
+                "task": stat.task,
                 "agent": stat.agent,
                 "attempts": stat.attempts,
                 "passes": stat.passes,
@@ -91,7 +94,7 @@ def suite_document(suite: SuiteResult, prices: PriceBook | None = None) -> dict:
             "tokens": suite.tokens(),
             "estimated_cost_usd": suite.cost(prices),
         },
-        "journeys": journeys,
+        "tasks": tasks,
     }
 
 
@@ -111,7 +114,7 @@ def junit_xml(suite: SuiteResult) -> str:
         element = ET.SubElement(
             suites,
             "testsuite",
-            name=stat.journey,
+            name=stat.task,
             tests=str(stat.attempts),
         )
         failures = errors = 0
@@ -119,7 +122,7 @@ def junit_xml(suite: SuiteResult) -> str:
             case = ET.SubElement(
                 element,
                 "testcase",
-                classname=f"quickstarted.{stat.journey}",
+                classname=f"quickstarted.{stat.task}",
                 name=f"{stat.agent} attempt {run.attempt}",
                 time=f"{run.duration:.2f}",
             )

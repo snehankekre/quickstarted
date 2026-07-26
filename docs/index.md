@@ -43,14 +43,14 @@ and the one it was on when things went wrong is a fact rather than a guess.
 
     [First run](getting-started/first-run.md)
 
--   __Writing journeys__
+-   __Writing tasks__
 
     ---
 
-    Success checks you can copy, and the rules that keep a journey from
+    Success checks you can copy, and the rules that keep a task from
     measuring luck.
 
-    [Writing journeys](guides/writing-journeys.md)
+    [Writing tasks](guides/writing-tasks.md)
 
 -   __Agent mode in depth__
 
@@ -72,7 +72,7 @@ reports triumph over a missing file still fails. Most of these scripts are two
 or three lines: the file exists, the import works, the output contains the
 number your page promised.
 [How scoring works](explanation/scoring.md) and
-[checks you can copy](guides/writing-journeys.md#success-checks-you-can-copy)
+[checks you can copy](guides/writing-tasks.md#success-checks-you-can-copy)
 
 **The sandbox is a boundary.** Documentation hosts are unreachable from the
 shell, so `read_docs` is the only route to a page and every read is recorded.

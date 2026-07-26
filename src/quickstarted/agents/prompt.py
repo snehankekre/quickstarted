@@ -7,7 +7,7 @@ much as the documentation, and the benchmark would mean nothing.
 
 from __future__ import annotations
 
-from ..journey import Journey
+from ..task import Task
 
 SYSTEM = """You are a developer trying out an unfamiliar software project by \
 following its documentation, inside a fresh throwaway workspace (your current \
@@ -36,7 +36,7 @@ READ_DOCS_DESCRIPTION = (
     "Read a documentation page. Call this whenever you need information about "
     "the target project: before your first command, and again whenever the "
     "docs you have already read do not answer the question at hand. Only "
-    "documentation hosts on this journey's allowlist are reachable; other "
+    "documentation hosts on this task's allowlist are reachable; other "
     "URLs return BLOCKED."
 )
 
@@ -46,16 +46,16 @@ BASH_DESCRIPTION = (
 )
 
 
-def kickoff(journey: Journey) -> str:
+def kickoff(task: Task) -> str:
     text = (
-        f"Goal: {journey.goal}\n\n"
-        f"Documentation entrypoint: {journey.docs_entrypoint}\n"
-        f"Allowed documentation hosts: {', '.join(journey.docs_allow)}"
+        f"Goal: {task.goal}\n\n"
+        f"Documentation entrypoint: {task.docs_entrypoint}\n"
+        f"Allowed documentation hosts: {', '.join(task.docs_allow)}"
     )
-    if journey.setup:
+    if task.setup:
         # Without this the agent cannot tell a prepared workspace from an empty
         # one, and may rebuild state that setup already created.
         text += "\n\nThe workspace was already prepared by running:\n" + "\n".join(
-            f"  $ {cmd}" for cmd in journey.setup
+            f"  $ {cmd}" for cmd in task.setup
         )
     return text

@@ -1,13 +1,13 @@
 """Execution backends for agent-issued commands.
 
-An executor owns the workspace a journey runs in and decides what a command
-can reach. Backends differ in one respect that matters: whether the journey's
+An executor owns the workspace a task runs in and decides what a command
+can reach. Backends differ in one respect that matters: whether the task's
 network policy is *enforced* by the operating system or merely *requested*.
 
 `enforced = False` means an agent that ignores the proxy environment can talk
 to any host it likes, and every docs page it reads that way is invisible to
 the trace. Since attribution of a failure to a documentation page is the whole
-product, unenforced backends are for developing journeys against code you
+product, unenforced backends are for developing tasks against code you
 trust, never for benchmarking third-party projects.
 """
 
@@ -86,7 +86,7 @@ class ProcessExecutor:
             for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
                 env[key] = self.proxy_url
                 env[key.lower()] = self.proxy_url
-            # Loopback must not go through the proxy. Journeys routinely start a
+            # Loopback must not go through the proxy. Tasks routinely start a
             # server and then ask it a question, and without this the request is
             # sent to the proxy, which refuses it as an unlisted host.
             for key in ("NO_PROXY", "no_proxy"):

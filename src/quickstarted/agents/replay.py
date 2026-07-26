@@ -1,4 +1,4 @@
-"""Replay agent: runs the journey's documented commands literally, no LLM.
+"""Replay agent: runs the task's documented commands literally, no LLM.
 
 This is the free CI mode. If the commands your docs tell users to type do not
 work verbatim, no agent (and no human) stands a chance; replay catches that on
@@ -10,22 +10,22 @@ from __future__ import annotations
 
 import time
 
-from ..journey import Journey
+from ..task import Task
 from .base import AgentOutcome, Toolbelt
 
 
 class ReplayAgent:
     name = "replay"
 
-    def run(self, journey: Journey, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
-        if not journey.replay:
+    def run(self, task: Task, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
+        if not task.replay:
             return AgentOutcome(
                 stop_reason="error",
                 turns=0,
-                detail="journey has no 'replay' commands; replay mode needs them",
+                detail="task has no 'replay' commands; replay mode needs them",
             )
-        toolbelt.fetch(journey.docs_entrypoint)
-        for i, command in enumerate(journey.replay, start=1):
+        toolbelt.fetch(task.docs_entrypoint)
+        for i, command in enumerate(task.replay, start=1):
             if time.monotonic() > deadline:
                 return AgentOutcome(stop_reason="timeout", turns=i - 1)
             result = toolbelt.bash(command)
@@ -36,4 +36,4 @@ class ReplayAgent:
                     turns=i,
                     detail=f"replay step {i} failed: {command}",
                 )
-        return AgentOutcome(stop_reason="completed", turns=len(journey.replay))
+        return AgentOutcome(stop_reason="completed", turns=len(task.replay))

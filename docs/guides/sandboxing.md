@@ -2,7 +2,7 @@
 
 > What each backend actually enforces, and when the difference matters.
 
-A journey runs commands that a model wrote after reading documentation you do
+A task runs commands that a model wrote after reading documentation you do
 not control. Some quickstarts still say `curl ... | bash`. The agent will
 follow that instruction.
 
@@ -12,10 +12,10 @@ follow that instruction.
 | --- | --- | --- | --- |
 | `docker` | container, workspace bind-mounted | internal network with no route out; the proxy sidecar is the only exit | anything, including CI |
 | `seatbelt` (macOS) | reads of your home denied, writes confined to the workspace | all egress denied except the proxy port | local development |
-| `local` | none | none; the proxy variables are advisory | journeys and projects you wrote yourself |
+| `local` | none | none; the proxy variables are advisory | tasks and projects you wrote yourself |
 
 ```bash
-quickstarted run journeys/x.yaml --backend docker
+quickstarted run tasks/x.yaml --backend docker
 quickstarted doctor          # what this machine can enforce
 ```
 
@@ -34,7 +34,7 @@ With no boundary, a command can reach any host it likes. That breaks the
 central claim, because a documentation page fetched by `curl` never appears in
 the trace and the "last page read before failure" stops being true.
 
-`--allow-unenforced` exists for the case where you wrote both the journey and
+`--allow-unenforced` exists for the case where you wrote both the task and
 the project. Results from it are still recorded as unenforced.
 
 ## What Docker does
@@ -56,14 +56,19 @@ socket.create_connection(("93.184.215.14", 443), timeout=10)
 # OSError: [Errno 101] Network is unreachable
 ```
 
-Choose the image with `--image` if your journeys need a different base:
+A task that needs a different base names one, which is how a suite mixes a
+Python quickstart and a Node one in a single run:
 
-```bash
-quickstarted run journeys/x.yaml --backend docker --image python:3.13-slim
+```yaml
+name: vite-quickstart
+image: node:22-slim
 ```
 
-The default image is `python:3.12-slim`, which has no `curl`. Success scripts
-that need one should install it, or use Python.
+`--image` sets the default for tasks that do not name one. See
+[image](../reference/task-schema.md#image).
+
+The default is `python:3.12-slim`, which has no `curl` and no Node. Success
+scripts that need `curl` should install it or use Python instead.
 
 ## What Seatbelt does
 

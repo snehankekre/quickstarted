@@ -26,7 +26,7 @@ pages the agent read.
 This creates one deliberate asymmetry: `docs.allow` hosts are readable only via
 `read_docs`, and `network.allow` hosts (package registries) are reachable only
 from the shell. When a host is genuinely both, PyPI being the obvious case, the
-journey says so explicitly and installs win. The resulting gap in attribution
+task says so explicitly and installs win. The resulting gap in attribution
 is reported alongside the result.
 
 ## Backends, and saying which one ran

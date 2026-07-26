@@ -6,7 +6,7 @@ Two outputs, both generated at build time so they cannot drift from the nav:
 * a raw `.md` alongside every rendered page, so an agent that appends `.md` to
   a URL gets the source instead of a parsed HTML shell.
 
-Practising what the tool measures. The project's own journey reads these docs
+Practising what the tool measures. The project's own task reads these docs
 through `read_docs`, so a regression here fails our CI like anyone else's.
 """
 

@@ -1,6 +1,6 @@
 name: quickstarted
 description: >
-  Run quickstarted journeys against your documentation. Replay mode is free and
+  Run quickstarted tasks against your documentation. Replay mode is free and
   needs no API key; agent mode needs QUICKSTARTED_ANTHROPIC_API_KEY (or
   ANTHROPIC_API_KEY) in env.
 branding:
@@ -8,9 +8,14 @@ branding:
   color: green
 
 inputs:
+  tasks:
+    description: Space-separated task files or a glob (e.g. tasks/*.yaml)
+    required: false
+    default: ""
   journeys:
-    description: Space-separated journey files or a glob (e.g. journeys/*.yaml)
-    required: true
+    description: Deprecated name for `tasks`, honoured until 0.4.0
+    required: false
+    default: ""
   agent:
     description: replay, claude, openai, or gemini
     required: false
@@ -20,7 +25,7 @@ inputs:
     required: false
     default: ""
   repeat:
-    description: Attempts per journey; more than one reports a pass rate
+    description: Attempts per task; more than one reports a pass rate
     required: false
     default: "1"
   workers:
@@ -66,10 +71,22 @@ runs:
     - name: Report what this runner can enforce
       shell: bash
       run: quickstarted doctor
-    - name: Run journeys
+    - name: Run tasks
       shell: bash
       run: |
-        args=(run ${{ inputs.journeys }}
+        files="${{ inputs.tasks }}"
+        if [ -z "$files" ]; then
+          files="${{ inputs.journeys }}"
+          if [ -n "$files" ]; then
+            echo "::warning::The 'journeys' input was renamed to 'tasks' in" \
+                 "0.3.0 and is removed in 0.4.0."
+          fi
+        fi
+        if [ -z "$files" ]; then
+          echo "::error::Set the 'tasks' input to the task files to run."
+          exit 1
+        fi
+        args=(run $files
           --agent "${{ inputs.agent }}"
           --backend "${{ inputs.backend }}"
           --repeat "${{ inputs.repeat }}"

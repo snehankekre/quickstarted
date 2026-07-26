@@ -1,12 +1,13 @@
-"""Journey definitions: the YAML unit of testing.
+"""Task definitions: the YAML unit of testing.
 
-A journey states a goal an agent should reach using only the target project's
+A task states a goal an agent should reach using only the target project's
 documentation, plus a machine-checkable success assertion. Pass/fail is always
 decided by the assertion script's exit code, never by a model's opinion.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
@@ -15,9 +16,11 @@ import yaml
 
 from .net.proxy import DEFAULT_NETWORK_ALLOW, host_matches
 
+_NODE_TOOLS = ("npm", "npx", "node", "pnpm", "yarn", "bun")
 
-class JourneyError(ValueError):
-    """Raised when a journey file is missing or malformed."""
+
+class TaskError(ValueError):
+    """Raised when a task file is missing or malformed."""
 
 
 @dataclass(frozen=True)
@@ -33,7 +36,7 @@ class Budgets:
 
 
 @dataclass(frozen=True)
-class Journey:
+class Task:
     name: str
     goal: str
     docs_entrypoint: str
@@ -50,7 +53,24 @@ class Journey:
     #: docs-host rule, so a registry that also serves documentation stays
     #: installable when the author says so.
     network_explicit: tuple[str, ...] = ()
+    #: Container image for the docker backend. Empty means the CLI's `--image`,
+    #: then the default. A task testing a Node quickstart needs Node in the
+    #: sandbox, and one suite mixes runtimes, so the image belongs to the task
+    #: rather than the invocation.
+    image: str = ""
     source: str = ""
+
+    @property
+    def needs_node(self) -> bool:
+        """Whether the success script calls a Node toolchain.
+
+        Used only to warn: `python:3.12-slim` has no Node, so the check would
+        fail for a reason that says nothing about the documentation.
+        """
+        script = self.success_script
+        return any(
+            re.search(rf"(^|[\s;&|(]){tool}\b", script) for tool in _NODE_TOOLS
+        )
 
     @property
     def network_conflicts(self) -> tuple[str, ...]:
@@ -83,7 +103,7 @@ class Journey:
 
 def _require(data: dict, key: str, source: str):
     if key not in data or data[key] in (None, "", []):
-        raise JourneyError(f"{source}: missing required field '{key}'")
+        raise TaskError(f"{source}: missing required field '{key}'")
     return data[key]
 
 
@@ -91,7 +111,7 @@ def _str_list(value, key: str, source: str) -> tuple[str, ...]:
     if value is None:
         return ()
     if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
-        raise JourneyError(f"{source}: '{key}' must be a list of strings")
+        raise TaskError(f"{source}: '{key}' must be a list of strings")
     return tuple(x.strip() for x in value if x.strip())
 
 
@@ -101,34 +121,34 @@ def _normalize_host(entry: str, source: str) -> str:
         entry = urlparse(entry).hostname or ""
     entry = entry.strip("/")
     if not entry or "/" in entry:
-        raise JourneyError(
+        raise TaskError(
             f"{source}: docs.allow entries must be bare hostnames, got {entry!r}"
         )
     return entry
 
 
-def load_journey(path: str | Path) -> Journey:
+def load_task(path: str | Path) -> Task:
     path = Path(path)
     source = str(path)
     if not path.is_file():
-        raise JourneyError(f"{source}: no such file")
+        raise TaskError(f"{source}: no such file")
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
-        raise JourneyError(f"{source}: invalid YAML: {exc}") from exc
+        raise TaskError(f"{source}: invalid YAML: {exc}") from exc
     if not isinstance(data, dict):
-        raise JourneyError(f"{source}: top level must be a mapping")
+        raise TaskError(f"{source}: top level must be a mapping")
 
     name = str(_require(data, "name", source))
     goal = str(_require(data, "goal", source)).strip()
 
     docs = _require(data, "docs", source)
     if not isinstance(docs, dict):
-        raise JourneyError(f"{source}: 'docs' must be a mapping")
+        raise TaskError(f"{source}: 'docs' must be a mapping")
     entrypoint = str(_require(docs, "entrypoint", source)).strip()
     parsed = urlparse(entrypoint)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        raise JourneyError(f"{source}: docs.entrypoint must be an http(s) URL")
+        raise TaskError(f"{source}: docs.entrypoint must be an http(s) URL")
     allow = [
         _normalize_host(h, source)
         for h in _str_list(docs.get("allow"), "docs.allow", source)
@@ -139,10 +159,10 @@ def load_journey(path: str | Path) -> Journey:
 
     network = data.get("network") or {}
     if not isinstance(network, dict):
-        raise JourneyError(f"{source}: 'network' must be a mapping")
+        raise TaskError(f"{source}: 'network' must be a mapping")
     unknown_net = set(network) - {"allow", "only"}
     if unknown_net:
-        raise JourneyError(f"{source}: unknown network keys: {sorted(unknown_net)}")
+        raise TaskError(f"{source}: unknown network keys: {sorted(unknown_net)}")
     extra_net = [
         _normalize_host(h, source)
         for h in _str_list(network.get("allow"), "network.allow", source)
@@ -155,19 +175,21 @@ def load_journey(path: str | Path) -> Journey:
 
     success = _require(data, "success", source)
     if not isinstance(success, dict):
-        raise JourneyError(f"{source}: 'success' must be a mapping")
+        raise TaskError(f"{source}: 'success' must be a mapping")
     success_script = str(_require(success, "script", source))
 
     budgets_data = data.get("budgets") or {}
     if not isinstance(budgets_data, dict):
-        raise JourneyError(f"{source}: 'budgets' must be a mapping")
+        raise TaskError(f"{source}: 'budgets' must be a mapping")
     known = set(Budgets.__dataclass_fields__)
     unknown = set(budgets_data) - known
     if unknown:
-        raise JourneyError(f"{source}: unknown budget keys: {sorted(unknown)}")
+        raise TaskError(f"{source}: unknown budget keys: {sorted(unknown)}")
     budgets = Budgets(**{k: int(v) for k, v in budgets_data.items()})
 
-    return Journey(
+    image = str(data.get("image") or "").strip()
+
+    return Task(
         name=name,
         goal=goal,
         docs_entrypoint=entrypoint,
@@ -178,5 +200,6 @@ def load_journey(path: str | Path) -> Journey:
         budgets=budgets,
         network_allow=network_allow,
         network_explicit=tuple(only_net or extra_net),
+        image=image,
         source=source,
     )

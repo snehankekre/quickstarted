@@ -3,6 +3,38 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-07-26
+
+Breaking, and deliberately early. The unit of testing is now a **task**, not a
+journey.
+
+### Changed
+
+- **`journey` is now `task`**, everywhere: the `journeys/` directory is
+  `tasks/`, `load_journey` is `load_task`, `run_journey` is `run_task`, the
+  `Journey` dataclass is `Task`, and `JourneyError` is `TaskError`.
+  "Journey" came from analytics funnels and describes the wrong shape. A task
+  is a goal plus one exit code, and "can an agent complete this task from your
+  docs" is the claim the tool actually tests.
+- **`results.json` is schema 2.0**: the `journey` and `journeys` keys are now
+  `task` and `tasks`. Nothing else about the document changed, so a 1.0
+  consumer needs only that substitution.
+- `quickstarted validate` and `quickstarted run` still accept paths under
+  `journeys/` and read the matching file in `tasks/`, printing a warning. That
+  fallback is removed in 0.4.0.
+
+### Added
+
+- **Per-task container image** (`image:` in a task file). The default
+  `python:3.12-slim` has no Node, so a suite could not mix a Python quickstart
+  with a JavaScript one; `--image` is one flag for a whole invocation.
+  Precedence is task, then `--image`, then the default. The resolved image is
+  recorded in `results.json` and printed beside the backend, because a pass
+  rate is not comparable across base images.
+- `validate` warns when a success script calls `npm`, `npx`, `node`, `pnpm`,
+  `yarn`, or `bun` while no image is set, since that check would fail for a
+  reason unrelated to the documentation.
+
 ## [0.2.0] - 2026-07-26
 
 The v0.1 harness could be talked out of its own guarantees: the docs allowlist

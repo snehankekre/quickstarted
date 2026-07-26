@@ -86,7 +86,7 @@ class DockerExecutor:
         (self.root / "tmp").mkdir()
         # mkdtemp gives 0700 owned by the invoking user. Where the daemon remaps
         # container root to another uid (rootless Docker, userns-remap, some CI
-        # runners), that uid cannot write the bind mount and every journey dies
+        # runners), that uid cannot write the bind mount and every task dies
         # in setup. Widen the throwaway workspace instead of forcing the
         # container to a non-root user, because a quickstart is allowed to say
         # `apt-get install`.

@@ -15,7 +15,7 @@ doing this at scale without being a nuisance.
 anybody can curl, and scoring it would be exactly the proxy metric this tool
 exists to replace. What nobody can currently answer is whether the file
 *helps*. So affordances are never scored, only recorded, and they can be
-withheld from the agent: run the same journey with `all` and with `none`, and
+withheld from the agent: run the same task with `all` and with `none`, and
 the difference in pass rate is a measurement of the affordance itself.
 
 The prompt is identical under both conditions. Only availability changes,

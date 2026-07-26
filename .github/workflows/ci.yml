@@ -57,10 +57,10 @@ jobs:
           python-version: "3.12"
       - run: pip install -e "."
       - run: quickstarted doctor
-      - run: quickstarted validate journeys/*.yaml
-      - name: Run replay journeys
+      - run: quickstarted validate tasks/*.yaml
+      - name: Run replay tasks
         run: |
-          quickstarted run journeys/pnf-quickstart.yaml \
+          quickstarted run tasks/pnf-quickstart.yaml \
             --agent replay --backend docker --out results
       - uses: actions/upload-artifact@v4
         if: always()

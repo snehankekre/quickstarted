@@ -36,7 +36,7 @@ quickstarted doctor
   QUICKSTARTED_ANTHROPIC_API_KEY: set
 ```
 
-Journeys execute commands that a model wrote after reading somebody else's
+Tasks execute commands that a model wrote after reading somebody else's
 documentation, which is untrusted code by any reasonable definition. The
 backend decides what those commands can touch:
 

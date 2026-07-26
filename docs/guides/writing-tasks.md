@@ -1,6 +1,6 @@
-# Writing journeys
+# Writing tasks
 
-> The rules that separate a journey which measures your docs from one that
+> The rules that separate a task which measures your docs from one that
 > measures luck.
 
 ## Success checks you can copy
@@ -70,8 +70,8 @@ Develop a check by running it yourself. `--keep-sandbox` leaves the workspace in
 place after a run, so you can `cd` into it and run the script by hand until it
 does what you meant.
 
-[st]: https://github.com/snehankekre/quickstarted/blob/main/journeys/streamlit-quickstart.yaml
-[fa]: https://github.com/snehankekre/quickstarted/blob/main/journeys/fastapi-quickstart.yaml
+[st]: https://github.com/snehankekre/quickstarted/blob/main/tasks/streamlit-quickstart.yaml
+[fa]: https://github.com/snehankekre/quickstarted/blob/main/tasks/fastapi-quickstart.yaml
 
 ## Assert the data
 
@@ -101,7 +101,7 @@ also recommends. You would be measuring your own expectations.
 
 ## Do not assert incidental paths
 
-An early journey in this repo checked for a `.venv` directory that the
+An early task in this repo checked for a `.venv` directory that the
 documentation never mentions. An agent created `venv/` instead, did everything
 else correctly, and was marked as a documentation failure.
 
@@ -149,7 +149,7 @@ network:
 ```
 
 Common registries are allowed by default. `quickstarted validate` warns when a
-journey declares one as a documentation host.
+task declares one as a documentation host.
 
 When a host genuinely serves both, name it under `network.allow` as well. The
 installs then work, and the report notes that reads from that host are no
@@ -175,12 +175,12 @@ goal: >
 ## Start in replay
 
 Write the replay commands first and run them. If the documented commands do not
-pass, the journey is not ready for a model, and any failure you see afterwards
+pass, the task is not ready for a model, and any failure you see afterwards
 tells you nothing about your documentation.
 
 ```bash
-quickstarted run journeys/mine.yaml --agent replay
-quickstarted run journeys/mine.yaml --agent claude
+quickstarted run tasks/mine.yaml --agent replay
+quickstarted run tasks/mine.yaml --agent claude
 ```
 
 ## Budget deliberately
@@ -194,9 +194,9 @@ budgets:
   max_tokens: 0            # 0 means unlimited
 ```
 
-A journey that routinely exhausts its budget produces `budget_exhausted`, which
+A task that routinely exhausts its budget produces `budget_exhausted`, which
 is excluded from pass rates. That is the correct outcome, and it also means a
-too-small budget quietly removes the journey from your results. Check the
+too-small budget quietly removes the task from your results. Check the
 discarded counts in the summary.
 
-Full field list: [journey schema](../reference/journey-schema.md).
+Full field list: [task schema](../reference/task-schema.md).

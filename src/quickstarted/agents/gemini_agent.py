@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import time
 
-from ..journey import Journey
+from ..task import Task
 from .base import AgentOutcome, Toolbelt
 from .prompt import BASH_DESCRIPTION, READ_DOCS_DESCRIPTION, SYSTEM, kickoff
 
@@ -48,7 +48,7 @@ class GeminiAgent:
         self.name = f"gemini:{model}" if model else "gemini"
         self.model_reported = ""
 
-    def run(self, journey: Journey, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
+    def run(self, task: Task, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
         if not self.model:
             return AgentOutcome(
                 "error", 0, "gemini adapter requires --model (no default is assumed)"
@@ -73,7 +73,7 @@ class GeminiAgent:
             ],
         )
         contents = [
-            types.Content(role="user", parts=[types.Part(text=kickoff(journey))])
+            types.Content(role="user", parts=[types.Part(text=kickoff(task))])
         ]
         input_tokens = output_tokens = cached = 0
 
@@ -82,7 +82,7 @@ class GeminiAgent:
                 reason, turns, detail, input_tokens, output_tokens, 0, cached
             )
 
-        for turn in range(1, journey.budgets.max_turns + 1):
+        for turn in range(1, task.budgets.max_turns + 1):
             if time.monotonic() > deadline:
                 return outcome("timeout", turn - 1)
             try:
@@ -135,4 +135,4 @@ class GeminiAgent:
                 )
             contents.append(types.Content(role="user", parts=replies))
 
-        return outcome("max_turns", journey.budgets.max_turns)
+        return outcome("max_turns", task.budgets.max_turns)

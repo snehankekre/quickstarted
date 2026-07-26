@@ -12,7 +12,7 @@
    .venv/bin/ruff check .
    .venv/bin/mypy
    .venv/bin/mkdocs build --strict
-   .venv/bin/quickstarted run journeys/*.yaml --agent replay --backend docker
+   .venv/bin/quickstarted run tasks/*.yaml --agent replay --backend docker
    ```
 
 4. Build and inspect the artifacts:
@@ -23,7 +23,7 @@
    tar -tzf dist/quickstarted-*.tar.gz | head -30
    ```
 
-   The sdist should contain `src/`, `tests/`, `journeys/`, `docs/`, and the
+   The sdist should contain `src/`, `tests/`, `tasks/`, `docs/`, and the
    Markdown files, and nothing else.
 
 5. Tag and push:
@@ -41,12 +41,12 @@
 ```bash
 python3 -m venv /tmp/verify && /tmp/verify/bin/pip install quickstarted
 /tmp/verify/bin/quickstarted doctor
-/tmp/verify/bin/quickstarted validate journeys/pnf-quickstart.yaml
+/tmp/verify/bin/quickstarted validate tasks/pnf-quickstart.yaml
 ```
 
 ## Version policy
 
-Semantic versioning. Before 1.0 the CLI and the journey schema may change in
+Semantic versioning. Before 1.0 the CLI and the task schema may change in
 minor releases, and the changelog says so explicitly when they do.
 
 `results.json` carries its own `schema_version`, which is independent of the

@@ -59,10 +59,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e "."
-      # The journey installs quickstarted from PyPI, because that is what the
+      # The task installs quickstarted from PyPI, because that is what the
       # docs tell a reader to do. It gates now that v0.2.0 is published.
       - run: |
-          quickstarted run journeys/quickstarted-quickstart.yaml \
+          quickstarted run tasks/quickstarted-quickstart.yaml \
             --agent replay --backend docker --out results
       - uses: actions/upload-artifact@v4
         if: always()

@@ -5,7 +5,7 @@
 ## quickstarted validate
 
 ```bash
-quickstarted validate journeys/*.yaml
+quickstarted validate tasks/*.yaml
 ```
 
 Parses each file, prints its name and available modes, and warns about
@@ -24,10 +24,10 @@ before trusting any number the tool produces.
 ## quickstarted run
 
 ```bash
-quickstarted run JOURNEY [JOURNEY ...] [options]
+quickstarted run TASK [TASK ...] [options]
 ```
 
-Exits 0 when every journey passed every attempt that produced evidence, and 1
+Exits 0 when every task passed every attempt that produced evidence, and 1
 otherwise.
 
 ### Agent selection
@@ -41,7 +41,7 @@ otherwise.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `--repeat` | 1 | Attempts per journey; above 1 reports a pass rate |
+| `--repeat` | 1 | Attempts per task; above 1 reports a pass rate |
 | `--workers` | 1 | Attempts run in parallel |
 
 ### Execution
@@ -49,7 +49,7 @@ otherwise.
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--backend` | `auto` | `auto`, `docker`, `seatbelt`, `local` |
-| `--image` | `python:3.12-slim` | Container image for the Docker backend |
+| `--image` | `python:3.12-slim` | Container image for the Docker backend, for tasks that do not set `image` themselves |
 | `--allow-unenforced` | off | Permit the `local` backend |
 | `--keep-sandbox` | off | Leave the workspace on disk for inspection |
 
@@ -78,25 +78,25 @@ otherwise.
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Every journey passed every evidential attempt |
-| 1 | A journey failed, a file was invalid, or the backend was refused |
+| 0 | Every task passed every evidential attempt |
+| 1 | A task failed, a file was invalid, or the backend was refused |
 
 ## Examples
 
 ```bash
 # Gate a pull request, free and deterministic.
-quickstarted run journeys/*.yaml --agent replay --backend docker --junit junit.xml
+quickstarted run tasks/*.yaml --agent replay --backend docker --junit junit.xml
 
 # Nightly pass rate across three attempts.
-quickstarted run journeys/*.yaml --agent claude --repeat 3 --workers 2 --out results/
+quickstarted run tasks/*.yaml --agent claude --repeat 3 --workers 2 --out results/
 
 # Does llms.txt help? Run both halves and compare.
-quickstarted run journeys/x.yaml --agent claude --repeat 10
-quickstarted run journeys/x.yaml --agent claude --repeat 10 --affordances none
+quickstarted run tasks/x.yaml --agent claude --repeat 10
+quickstarted run tasks/x.yaml --agent claude --repeat 10 --affordances none
 
 # Reproduce yesterday's documentation exactly.
-quickstarted run journeys/x.yaml --agent claude --cache-dir .cache --offline
+quickstarted run tasks/x.yaml --agent claude --cache-dir .cache --offline
 
 # Debug a failure by keeping the workspace.
-quickstarted run journeys/x.yaml --agent claude --keep-sandbox --backend local --allow-unenforced
+quickstarted run tasks/x.yaml --agent claude --keep-sandbox --backend local --allow-unenforced
 ```

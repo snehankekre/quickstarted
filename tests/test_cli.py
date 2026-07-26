@@ -2,7 +2,7 @@ import textwrap
 
 from quickstarted.cli import main
 
-JOURNEY = textwrap.dedent(
+TASK = textwrap.dedent(
     """
     name: cli-demo
     goal: create done.txt
@@ -20,7 +20,7 @@ JOURNEY = textwrap.dedent(
 
 def test_validate_ok(tmp_path, capsys):
     path = tmp_path / "j.yaml"
-    path.write_text(JOURNEY)
+    path.write_text(TASK)
     assert main(["validate", str(path)]) == 0
     assert "ok" in capsys.readouterr().out
 
@@ -44,7 +44,7 @@ def test_run_replay_writes_outputs(tmp_path, capsys, monkeypatch):
         ),
     )
     path = tmp_path / "j.yaml"
-    path.write_text(JOURNEY)
+    path.write_text(TASK)
     out_dir = tmp_path / "results"
     code = main(
         ["run", str(path), "--agent", "replay", "--out", str(out_dir),
@@ -68,7 +68,7 @@ def test_run_exit_code_on_failure(tmp_path, capsys, monkeypatch):
         ),
     )
     path = tmp_path / "j.yaml"
-    path.write_text(JOURNEY.replace("echo x > done.txt", "exit 1"))
+    path.write_text(TASK.replace("echo x > done.txt", "exit 1"))
     assert main(
         ["run", str(path), "--agent", "replay", "--backend", "local",
          "--allow-unenforced"]
@@ -79,7 +79,32 @@ def test_run_exit_code_on_failure(tmp_path, capsys, monkeypatch):
 def test_run_refuses_an_unenforced_backend_by_default(tmp_path, capsys):
     """Silently running without a boundary would make every result unciteable."""
     path = tmp_path / "j.yaml"
-    path.write_text(JOURNEY)
+    path.write_text(TASK)
     code = main(["run", str(path), "--agent", "replay", "--backend", "local"])
     assert code == 1
     assert "REFUSING" in capsys.readouterr().err
+
+
+def test_legacy_journeys_path_still_resolves(tmp_path, capsys, monkeypatch):
+    """A CI config pinned to the pre-0.3 directory keeps working, with a warning."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tasks").mkdir()
+    (tmp_path / "tasks" / "demo.yaml").write_text(TASK)
+
+    assert main(["validate", "journeys/demo.yaml"]) == 0
+    captured = capsys.readouterr()
+    assert "renamed to 'tasks/'" in captured.err
+    assert "cli-demo" in captured.out
+
+
+def test_missing_file_is_still_an_error(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert main(["validate", "journeys/absent.yaml"]) == 1
+    assert "no such file" in capsys.readouterr().out
+
+
+def test_node_script_without_image_warns(tmp_path, capsys):
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK.replace("script: test -f done.txt", "script: npm run build"))
+    assert main(["validate", str(path)]) == 0
+    assert "no 'image' is set" in capsys.readouterr().out

@@ -3,7 +3,7 @@
 Every packet an agent's shell sends leaves through here, which buys three
 things the v0 design only hoped for:
 
-1. **Enforcement.** The journey's network allowlist is applied by the proxy,
+1. **Enforcement.** The task's network allowlist is applied by the proxy,
    not by asking the agent nicely to use the `read_docs` tool.
 2. **Attribution.** Documentation hosts are deliberately *not* reachable from
    the shell. An agent that tries `curl https://docs.example.com/...` is
@@ -60,7 +60,7 @@ class EgressProxy:
     def __init__(self, network_allow, docs_hosts=(), trace=None, explicit_allow=()):
         self.network_allow = tuple(network_allow)
         self.docs_hosts = tuple(docs_hosts)
-        #: Hosts the journey named under `network.allow` by hand. A host can be
+        #: Hosts the task named under `network.allow` by hand. A host can be
         #: both documentation and a package registry (PyPI is the obvious
         #: case), and when an author says so explicitly, installs win over
         #: attribution for that host. The override is recorded, not silent.
@@ -153,7 +153,7 @@ class _ProxyHandler(BaseHTTPRequestHandler):
         else:
             allowed = ", ".join(self.proxy.network_allow) or "(none)"
             body = (
-                f"BLOCKED by quickstarted: {host} is not on this journey's network "
+                f"BLOCKED by quickstarted: {host} is not on this task's network "
                 f"allowlist ({allowed}).\n"
             ).encode()
         self.send_response(403)

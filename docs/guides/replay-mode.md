@@ -20,7 +20,7 @@ replay:
 ```
 
 ```bash
-quickstarted run journeys/httpx.yaml --agent replay
+quickstarted run tasks/httpx.yaml --agent replay
 ```
 
 The harness runs them in order, stops at the first non-zero exit, and then runs
@@ -65,8 +65,8 @@ Guessing between the two is how benchmarks end up publishing noise. See
 ## Both, on two schedules
 
 ```bash
-quickstarted run journeys/*.yaml --agent replay              # every push
-quickstarted run journeys/*.yaml --agent claude --repeat 3   # weekly
+quickstarted run tasks/*.yaml --agent replay              # every push
+quickstarted run tasks/*.yaml --agent claude --repeat 3   # weekly
 ```
 
 Replay is free and deterministic, so gating merges on it is reasonable. Agent
@@ -74,10 +74,10 @@ mode costs tokens and varies between runs, so it belongs on a schedule or on a
 new model release, read as a rate rather than a verdict. [Running in
 CI](ci.md) has both jobs.
 
-A journey may declare either block or both. `quickstarted validate` reports
+A task may declare either block or both. `quickstarted validate` reports
 which modes each file supports:
 
 ```
-ok       journeys/httpx.yaml (httpx-quickstart, replay+agent)
-ok       journeys/streamlit-quickstart.yaml (streamlit-quickstart, agent-only)
+ok       tasks/httpx.yaml (httpx-quickstart, replay+agent)
+ok       tasks/streamlit-quickstart.yaml (streamlit-quickstart, agent-only)
 ```

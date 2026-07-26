@@ -5,16 +5,16 @@ import textwrap
 
 from quickstarted.agents.base import Toolbelt
 from quickstarted.agents.replay import ReplayAgent
-from quickstarted.journey import load_journey
 from quickstarted.report import console_summary, markdown_report
-from quickstarted.run import run_journey
+from quickstarted.run import run_task
+from quickstarted.task import load_task
 
 
 def fake_http_get(url, timeout=30):
     return "text/html", "<html><body><h1>Docs</h1><p>pip install thing</p></body></html>"
 
 
-def make_journey(tmp_path, success="test -f done.txt", replay=("echo x > done.txt",)):
+def make_task(tmp_path, success="test -f done.txt", replay=("echo x > done.txt",)):
     replay_yaml = "\n".join(f"  - {c!r}" for c in replay)
     text = textwrap.dedent(
         f"""
@@ -33,12 +33,12 @@ def make_journey(tmp_path, success="test -f done.txt", replay=("echo x > done.tx
     )
     path = tmp_path / "t.yaml"
     path.write_text(text)
-    return load_journey(path)
+    return load_task(path)
 
 
 def test_replay_pass(tmp_path):
-    journey = make_journey(tmp_path)
-    result = run_journey(journey, ReplayAgent(), http_get=fake_http_get, backend="local")
+    task = make_task(tmp_path)
+    result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")
     assert result.passed
     assert result.outcome.stop_reason == "completed"
     # entrypoint was fetched and recorded
@@ -47,8 +47,8 @@ def test_replay_pass(tmp_path):
 
 
 def test_replay_fail_scores_fail_and_attributes(tmp_path):
-    journey = make_journey(tmp_path, replay=("false",))
-    result = run_journey(journey, ReplayAgent(), http_get=fake_http_get, backend="local")
+    task = make_task(tmp_path, replay=("false",))
+    result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")
     assert not result.passed
     assert result.outcome.stop_reason == "command_failed"
     assert result.suspect_page == "https://example.com/docs/"
@@ -59,8 +59,8 @@ def test_replay_fail_scores_fail_and_attributes(tmp_path):
 
 def test_agent_lies_scoring_is_deterministic(tmp_path):
     """Agent 'completes' but the artifact is missing: score must be FAIL."""
-    journey = make_journey(tmp_path, replay=("echo pretending I made done.txt",))
-    result = run_journey(journey, ReplayAgent(), http_get=fake_http_get, backend="local")
+    task = make_task(tmp_path, replay=("echo pretending I made done.txt",))
+    result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")
     assert result.outcome.stop_reason == "completed"
     assert not result.passed
 
@@ -82,16 +82,16 @@ def test_setup_failure_short_circuits(tmp_path):
     )
     path = tmp_path / "t.yaml"
     path.write_text(text)
-    journey = load_journey(path)
-    result = run_journey(journey, ReplayAgent(), http_get=fake_http_get, backend="local")
+    task = load_task(path)
+    result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")
     assert not result.passed
     assert result.outcome.stop_reason == "error"
     assert "setup" in result.outcome.detail
 
 
 def test_trace_jsonl_written(tmp_path):
-    journey = make_journey(tmp_path)
-    result = run_journey(journey, ReplayAgent(), http_get=fake_http_get, backend="local")
+    task = make_task(tmp_path)
+    result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")
     out = tmp_path / "trace.jsonl"
     result.trace.write_jsonl(out)
     lines = out.read_text().strip().splitlines()
@@ -105,14 +105,14 @@ def test_trace_jsonl_written(tmp_path):
 
 
 def test_toolbelt_blocks_disallowed_hosts(tmp_path):
-    journey = make_journey(tmp_path)
+    task = make_task(tmp_path)
     from quickstarted.sandbox import Sandbox
     from quickstarted.trace import Trace
 
     sb = Sandbox()
     try:
         trace = Trace()
-        belt = Toolbelt(journey, sb, trace, http_get=fake_http_get)
+        belt = Toolbelt(task, sb, trace, http_get=fake_http_get)
         out = belt.fetch("https://evil.com/steal")
         assert out.startswith("BLOCKED")
         assert trace.fetched_urls() == []  # blocked fetches are not docs reads
@@ -122,13 +122,13 @@ def test_toolbelt_blocks_disallowed_hosts(tmp_path):
 
 
 def test_html_is_converted_to_text(tmp_path):
-    journey = make_journey(tmp_path)
+    task = make_task(tmp_path)
     from quickstarted.sandbox import Sandbox
     from quickstarted.trace import Trace
 
     sb = Sandbox()
     try:
-        belt = Toolbelt(journey, sb, Trace(), http_get=fake_http_get)
+        belt = Toolbelt(task, sb, Trace(), http_get=fake_http_get)
         out = belt.fetch("https://example.com/docs/")
         assert "<html>" not in out
         assert "pip install thing" in out
@@ -149,7 +149,7 @@ def test_replay_requires_replay_commands(tmp_path):
     )
     path = tmp_path / "t.yaml"
     path.write_text(text)
-    journey = load_journey(path)
-    result = run_journey(journey, ReplayAgent(), http_get=fake_http_get, backend="local")
+    task = load_task(path)
+    result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")
     assert result.outcome.stop_reason == "error"
     assert "replay" in result.outcome.detail

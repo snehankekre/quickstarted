@@ -6,7 +6,7 @@ The trace is the raw material behind every report. One object per line, each
 with `ts` and `type` plus event-specific fields.
 
 ```bash
-quickstarted run journeys/x.yaml --agent claude --out results/
+quickstarted run tasks/x.yaml --agent claude --out results/
 jq -r 'select(.type == "docs_fetch") | .url' results/x/trace.jsonl
 ```
 
@@ -14,7 +14,7 @@ jq -r 'select(.type == "docs_fetch") | .url' results/x/trace.jsonl
 
 | Type | Fields | When |
 | --- | --- | --- |
-| `run_start` | `journey`, `agent`, `backend`, `enforced`, `attempt`, `affordance_policy` | First line |
+| `run_start` | `task`, `agent`, `backend`, `enforced`, `attempt`, `affordance_policy` | First line |
 | `setup` | `command`, `exit_code`, `output` | Per setup command |
 | `run_end` | `stop_reason`, `passed`, `classification` | Last line |
 

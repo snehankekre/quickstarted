@@ -3,7 +3,7 @@
 Every agent, whatever the model or vendor, acts on the sandbox only through
 the Toolbelt. That is a deliberate design choice: because docs access flows
 through `fetch`, the harness records every page the agent reads (failure
-attribution) and enforces the journey's host allowlist. Adapters never talk
+attribution) and enforces the task's host allowlist. Adapters never talk
 to the filesystem or network directly.
 """
 
@@ -14,7 +14,7 @@ from typing import Callable, Protocol
 
 from ..docs import DocsClient
 from ..exec.base import Executor, truncate
-from ..journey import Journey
+from ..task import Task
 from ..trace import Trace
 from ..transport import html_to_text
 
@@ -24,20 +24,20 @@ _FETCH_LIMIT = 60_000
 class Toolbelt:
     def __init__(
         self,
-        journey: Journey,
+        task: Task,
         executor: Executor,
         trace: Trace,
         docs: DocsClient | None = None,
         http_get: Callable[[str], tuple[str, str]] | None = None,
     ):
-        self.journey = journey
+        self.task = task
         self.executor = executor
         self.trace = trace
         self.docs = docs or DocsClient()
         self._http_get = http_get
 
     def bash(self, command: str) -> str:
-        budgets = self.journey.budgets
+        budgets = self.task.budgets
         self.trace.add("tool_call", tool="bash", command=command)
         result = self.executor.run(
             command,
@@ -56,10 +56,10 @@ class Toolbelt:
 
     def fetch(self, url: str) -> str:
         self.trace.add("tool_call", tool="fetch", url=url)
-        if not self.journey.host_allowed(url):
-            allowed = ", ".join(self.journey.docs_allow)
+        if not self.task.host_allowed(url):
+            allowed = ", ".join(self.task.docs_allow)
             message = (
-                f"BLOCKED: {url} is outside this journey's documentation allowlist "
+                f"BLOCKED: {url} is outside this task's documentation allowlist "
                 f"({allowed}). Only the target project's docs may be read."
             )
             self.trace.add("fetch_blocked", url=url)
@@ -141,5 +141,5 @@ class AgentOutcome:
 class Agent(Protocol):
     name: str
 
-    def run(self, journey: Journey, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
+    def run(self, task: Task, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
         ...

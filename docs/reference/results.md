@@ -1,14 +1,14 @@
 # Results schema
 
-> `results.json`, version 1.0. Fields get added, not repurposed.
+> `results.json`, version 2.0. Fields get added, not repurposed.
 
 Written to `<out>/results.json` when you pass `--out`. The version rises when a
 field changes meaning, so anything parsing this file can check one number.
 
 ```json
 {
-  "schema_version": "1.0",
-  "quickstarted_version": "0.2.0",
+  "schema_version": "2.0",
+  "quickstarted_version": "0.3.0",
   "generated_at": "2026-07-26T04:11:07Z",
   "environment": {
     "python": "3.12.4",
@@ -23,18 +23,18 @@ field changes meaning, so anything parsing this file can check one number.
     "tokens": {"input": 88, "output": 9134, "cache_write": 60215, "cache_read": 402118},
     "estimated_cost_usd": null
   },
-  "journeys": [ ... ]
+  "tasks": [ ... ]
 }
 ```
 
 `environment.backend` is the resolved backend, never `auto`. A published result
 has to say what was enforced.
 
-## Per journey
+## Per task
 
 ```json
 {
-  "journey": "duckdb-quickstart",
+  "task": "duckdb-quickstart",
   "agent": "claude:claude-opus-5",
   "attempts": 3,
   "passes": 2,
@@ -67,7 +67,7 @@ assert a documentation failure the runs do not support.
 
 ```json
 {
-  "journey": "duckdb-quickstart",
+  "task": "duckdb-quickstart",
   "attempt": 2,
   "agent": "claude:claude-opus-5",
   "model_reported": "claude-opus-5",
@@ -79,6 +79,7 @@ assert a documentation failure the runs do not support.
   "duration_seconds": 88.1,
   "backend": "docker",
   "enforced": true,
+  "image": "python:3.12-slim",
   "docs_pages_read": ["https://duckdb.org/docs/stable/clients/python/overview"],
   "suspect_page": "https://duckdb.org/docs/stable/clients/python/overview",
   "docs_bypass_attempts": 0,
@@ -93,6 +94,7 @@ assert a documentation failure the runs do not support.
 | `evidential` | True for `passed` and `docs_gap` |
 | `stop_reason` | Why the agent loop ended, before scoring |
 | `enforced` | Whether the backend was a real boundary |
+| `image` | Container image used; empty for backends that have none |
 | `docs_pages_read` | Complete, because the shell cannot reach documentation |
 | `docs_bypass_attempts` | Blocked attempts to fetch docs through the shell |
 | `success_check.output` | Last 2000 characters of the script's output |
@@ -104,7 +106,7 @@ failure: the agent believed it was done and the script disagreed.
 ## JUnit XML
 
 ```bash
-quickstarted run journeys/*.yaml --junit junit.xml
+quickstarted run tasks/*.yaml --junit junit.xml
 ```
 
 A `docs_gap` becomes a `<failure>`. Everything non-evidential becomes an

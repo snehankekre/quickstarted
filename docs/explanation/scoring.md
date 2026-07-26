@@ -56,7 +56,7 @@ That one model, on one day, reading only the pages you allowed, produced an
 artifact satisfying assertions you wrote. That is a floor.
 
 It does not claim the documentation is good, complete, or accurate elsewhere.
-Journeys test the paths you thought to write down, which is the same limitation
+Tasks test the paths you thought to write down, which is the same limitation
 every test suite has.
 
 ## Why the agent never sees the script

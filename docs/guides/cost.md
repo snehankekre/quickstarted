@@ -62,9 +62,9 @@ Write the rates you are actually charged, in dollars per million tokens:
 
 ```bash
 export QUICKSTARTED_PRICES=~/prices.json
-quickstarted run journeys/*.yaml --agent claude --repeat 5
+quickstarted run tasks/*.yaml --agent claude --repeat 5
 # or
-quickstarted run journeys/*.yaml --agent claude --prices ~/prices.json
+quickstarted run tasks/*.yaml --agent claude --prices ~/prices.json
 ```
 
 ```
@@ -84,7 +84,7 @@ where nothing matched reports no estimate at all.
 Replay mode is free. Run it on every change, and reserve agent mode for
 schedules and model releases.
 
-Prompt caching does most of the work on repeated runs of the same journey,
+Prompt caching does most of the work on repeated runs of the same task,
 which is visible in the cache-read counter. Concurrency (`--workers`) shortens
 wall clock without changing token cost, and raises your chance of a rate limit.
 
