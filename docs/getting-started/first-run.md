@@ -81,19 +81,33 @@ recorded in the trace and never consulted. See
 A pass tells you the floor holds. The interesting output is the other one:
 
 ```
-[FAIL] duckdb-quickstart (claude:claude-opus-5)
+[FAIL] fastapi-quickstart (openai:gpt-5.2-2025-12-11)
   classification: docs_gap
-  turns: 14, duration: 88.1s
-  backend: docker
-  success check exit code: 1 (AssertionError: no table named orders)
-  last docs page read before failure: https://duckdb.org/docs/stable/clients/python/overview
-  docs pages read: 9
+  turns: 7, duration: 65.7s
+  backend: docker (python:3.12-slim)
+  success check exit code: 1 (	pip install "fastapi[standard]")
+  last docs page read before failure: https://fastapi.tiangolo.com/tutorial/first-steps/
+  docs pages read: 1
 ```
 
-Start at the last page. The agent read nine pages, got that far, and produced a
-database without the table the script expected. Either that page is missing a
-step, or the next step is somewhere the agent never found. That is a bug report
-against your documentation with a line number.
+Start at the last page, then read the check's own output. `--out results/` has
+the whole thing:
+
+```
+GET /items/42 never answered correctly. Last attempt: Connection refused
+--- server.log (last 20 lines) ---
+To use the fastapi command, please install "fastapi[standard]":
+
+	pip install "fastapi[standard]"
+```
+
+The model wrote a correct application and then had nothing to run it with,
+because it installed `fastapi` where the page says `fastapi[standard]`. That is
+a bug report with a page attached, and it reproduced on three runs out of three
+while Claude Opus 5 passed the same task eleven times out of eleven.
+
+Two runs of the same task on two models disagreeing is the normal case, not a
+malfunction. See [pass rates](../guides/pass-rates.md).
 
 ## Add a free precondition
 

@@ -35,19 +35,29 @@ has to say what was enforced.
 ```json
 {
   "task": "duckdb-quickstart",
-  "agent": "claude:claude-opus-5",
+  "agent": "claude:claude-haiku-4-5-20251001",
   "attempts": 3,
   "passes": 2,
-  "evidential_runs": 3,
-  "pass_rate": 0.6666666666666666,
-  "discarded": {"infra_error": 1},
-  "models_reported": ["claude-opus-5"],
-  "suspect_pages": {"https://duckdb.org/docs/stable/clients/python/overview": 1},
-  "tokens": {"input": 44, "output": 4567, "cache_write": 30107, "cache_read": 201059},
+  "evidential_runs": 2,
+  "pass_rate": 1.0,
+  "discarded": {"budget_exhausted": 1},
+  "models_reported": ["claude-haiku-4-5-20251001"],
+  "suspect_pages": {"https://duckdb.org/docs/clients/python/overview": 1},
+  "tokens": {"input": 25608, "output": 5387, "cache_write": 26486, "cache_read": 261469},
   "estimated_cost_usd": null,
   "runs": [ ... ]
 }
 ```
+
+Note the arithmetic, because it is the whole point of the schema. Three attempts,
+one ran out of turns, so `evidential_runs` is 2 and `pass_rate` is 1.0. The rate
+is over what produced evidence, never over what was attempted, and `attempts`
+minus `evidential_runs` always equals the sum of `discarded`. A consumer that
+divides `passes` by `attempts` gets 0.67 and reports a documentation problem that
+the runs do not support.
+
+`suspect_pages` still records the page from the discarded run, since knowing
+where a run ran out of turns is useful even when it cannot count toward a rate.
 
 | Field | Meaning |
 | --- | --- |
@@ -65,28 +75,37 @@ assert a documentation failure the runs do not support.
 
 ## Per run
 
+A real record, with the check's output trimmed to its first line:
+
 ```json
 {
-  "task": "duckdb-quickstart",
-  "attempt": 2,
-  "agent": "claude:claude-opus-5",
-  "model_reported": "claude-opus-5",
+  "task": "fastapi-quickstart",
+  "attempt": 1,
+  "agent": "openai:gpt-5.2-2025-12-11",
+  "model_reported": "gpt-5.2-2025-12-11",
   "classification": "docs_gap",
   "passed": false,
   "evidential": true,
   "stop_reason": "completed",
-  "turns": 14,
-  "duration_seconds": 88.1,
+  "turns": 8,
+  "duration_seconds": 65.85,
   "backend": "docker",
   "enforced": true,
   "image": "python:3.12-slim",
-  "docs_pages_read": ["https://duckdb.org/docs/stable/clients/python/overview"],
-  "suspect_page": "https://duckdb.org/docs/stable/clients/python/overview",
+  "docs_pages_read": ["https://fastapi.tiangolo.com/tutorial/first-steps/"],
+  "suspect_page": "https://fastapi.tiangolo.com/tutorial/first-steps/",
   "docs_bypass_attempts": 0,
-  "success_check": {"exit_code": 1, "output": "AssertionError: no table named orders"},
-  "tokens": {"input": 22, "output": 2100, "cache_write": 15000, "cache_read": 98000}
+  "success_check": {
+    "exit_code": 1,
+    "output": "GET /items/42 never answered correctly. Last attempt: URLError: <urlopen error [Errno 111] Connection refused>"
+  },
+  "tokens": {"input": 11121, "output": 628, "cache_write": 0, "cache_read": 56320}
 }
 ```
+
+`cache_write` is 0 and `cache_read` is not, because OpenAI does not bill cache
+writes; the four counters mean the same thing across vendors but not every vendor
+populates all four. See [cost and budgets](../guides/cost.md).
 
 | Field | Meaning |
 | --- | --- |

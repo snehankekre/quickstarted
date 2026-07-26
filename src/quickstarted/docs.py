@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 import time
 import urllib.error
@@ -41,6 +42,19 @@ AFFORDANCE_FILES = ("llms.txt", "llms-full.txt")
 AFFORDANCE_POLICIES = ("all", "none")
 
 
+_META_REFRESH = re.compile(r"""<meta[^>]+http-equiv\s*=\s*["']?refresh["']?[^>]*>""", re.I)
+_REFRESH_URL = re.compile(r"""url\s*=\s*["']?([^"'>\s]+)""", re.I)
+
+
+def _meta_refresh_target(html: str, base: str) -> str:
+    """The URL a <meta http-equiv="refresh"> points at, resolved against base."""
+    tag = _META_REFRESH.search(html or "")
+    if not tag:
+        return ""
+    found = _REFRESH_URL.search(tag.group(0))
+    return urljoin(base, found.group(1)) if found else ""
+
+
 @dataclass(frozen=True)
 class FetchResult:
     url: str
@@ -51,6 +65,10 @@ class FetchResult:
     content_hash: str = ""
     changed: bool = False
     blocked_reason: str = ""
+    #: Set when this page was reached by following a client-side redirect, and
+    #: holds the URL that was asked for. The agent asked for that one; the trace
+    #: has to say which page it actually got.
+    followed_from: str = ""
 
     @property
     def ok(self) -> bool:
@@ -166,15 +184,21 @@ class DocsClient:
                 url, 0, "", "", blocked_reason="affordance_withheld"
             )
 
-        cached = self._read_cache(url)
+        # What the agent asked for. `url` may be reassigned below if the page
+        # turns out to be a client-side redirect, but the cache stays keyed on
+        # the request so a rerun is a hit rather than another two round trips.
+        requested = url
+
+        cached = self._read_cache(requested)
         if cached and not self.refresh:
             return FetchResult(
-                url=url,
+                url=cached.get("url") or requested,
                 status=cached["status"],
                 content_type=cached["content_type"],
                 text=cached["text"],
                 from_cache=True,
                 content_hash=cached["content_hash"],
+                followed_from=cached.get("followed_from", ""),
             )
 
         if self.offline:
@@ -187,18 +211,35 @@ class DocsClient:
         self._throttle(host)
         response = transport.http_get(url, timeout=self.timeout)
         text = response.text
+        followed_from = ""
         if "html" in (response.content_type or "").lower():
+            # Some documentation sites answer a versioned URL with a stub whose
+            # only content is a client-side redirect. duckdb.org does this: the
+            # entrypoint returns 938 bytes of HTML that render as "Redirecting…",
+            # 73 characters of text, and the real page is named in a
+            # <meta http-equiv="refresh">. A browser follows it, so an agent with
+            # one gets the docs and an agent without gets nothing. Following it
+            # here keeps the two comparable, and stops the harness from handing
+            # over an empty page and then recording a documentation gap.
+            target = _meta_refresh_target(text, url)
+            if target and target != url and self._host_allows_hop(url, target):
+                self._throttle(urlparse(target).hostname or "")
+                hop = transport.http_get(target, timeout=self.timeout)
+                if hop.status and 200 <= hop.status < 300:
+                    followed_from, url, response = url, target, hop
+                    text = hop.text
             text = transport.html_to_text(text)
         content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
         changed = bool(cached and cached.get("content_hash") != content_hash)
         self._write_cache(
-            url,
+            requested,
             {
                 "url": url,
                 "status": response.status,
                 "content_type": response.content_type,
                 "text": text,
                 "content_hash": content_hash,
+                "followed_from": followed_from,
                 "fetched_at": time.time(),
             },
         )
@@ -209,7 +250,19 @@ class DocsClient:
             text=text,
             content_hash=content_hash,
             changed=changed,
+            followed_from=followed_from,
         )
+
+    def _host_allows_hop(self, source: str, target: str) -> bool:
+        """Only follow a client-side redirect within the same registrable host.
+
+        A stub that points somewhere else entirely would take the agent off the
+        documentation allowlist, and a page read that the task never sanctioned
+        is exactly the attribution hole the proxy exists to close.
+        """
+        a = (urlparse(source).hostname or "").lower().strip(".")
+        b = (urlparse(target).hostname or "").lower().strip(".")
+        return bool(a) and bool(b) and (a == b or b.endswith("." + a) or a.endswith("." + b))
 
     # -- affordance probing ---------------------------------------------
     def probe(self, entrypoint: str) -> dict[str, Affordance]:

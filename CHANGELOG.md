@@ -45,6 +45,16 @@ journey.
 
 ### Fixed
 
+- **Client-side redirects are followed.** DuckDB answers its own versioned doc
+  URLs with 938 bytes of HTML that render as 73 characters of "Redirecting...",
+  naming the real page in a `<meta http-equiv="refresh">`. The fetcher handed
+  those 73 characters to the agent as though they were documentation, so the
+  duckdb task was measuring recovery from an empty page. A browser follows the
+  refresh, so an agent with one reads the docs and an agent without reads
+  nothing; following it keeps the two comparable. The hop is taken only within
+  the same host, since a stub pointing elsewhere would read a page the task
+  never allowlisted, and both URLs land in the trace as
+  `docs_redirect_followed`. The same entrypoint now yields 21,659 characters.
 - **Docker workspaces no longer leak into the VM (macOS).** The sandbox root
   came from `tempfile.mkdtemp()`, which on macOS returns a path under
   `/var/folders`. That is not shared with the Docker VM, so `-v` created a

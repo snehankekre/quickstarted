@@ -35,7 +35,8 @@ never scored.
 
 | Type | Fields | When |
 | --- | --- | --- |
-| `docs_fetch` | `url`, `chars`, `original_chars`, `truncated`, `from_cache`, `content_hash` | A page was read |
+| `docs_fetch` | `url`, `chars`, `original_chars`, `truncated`, `from_cache`, `content_hash`, `resolved_to` | A page was read |
+| `docs_redirect_followed` | `requested`, `resolved_to` | The page was a client-side redirect |
 | `docs_changed` | `url`, `content_hash` | `--refresh` saw different bytes |
 | `fetch_blocked` | `url`, `reason` | Outside the allowlist, robots, or offline |
 | `fetch_error` | `url`, `error` | The fetch itself failed |
@@ -45,6 +46,18 @@ never scored.
 `truncated` is worth watching. A page too large to read in one call is an
 agent-experience defect in its own right, and `original_chars` tells you how
 far past the limit it was.
+
+`docs_redirect_followed` means the requested URL answered with a page whose only
+content was a `<meta http-equiv="refresh">`, and the real page was fetched
+instead. DuckDB's versioned URLs do this: 938 bytes of HTML that render as 73
+characters of "Redirecting...", with the actual documentation at another path.
+A browser follows it, so an agent with a browser reads the docs and an agent
+without reads nothing, and the harness follows it to keep the two comparable.
+
+The hop is only taken within the same host. A stub pointing elsewhere is left
+alone, because reading a page the task never allowlisted is the attribution hole
+the proxy exists to close. Both URLs are recorded, so a run never claims to have
+read a page it did not get.
 
 ## Network policy
 

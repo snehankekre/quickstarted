@@ -9,25 +9,33 @@ days. A benchmark that publishes one run per project publishes noise with a
 confident face on it.
 
 ```bash
-quickstarted run tasks/*.yaml --agent claude --repeat 5 --workers 3
+quickstarted run tasks/*.yaml --agent claude --model claude-haiku-4-5 --repeat 3
 ```
 
+Four lines from a real suite of fourteen:
+
 ```
-==============================================================
-Suite: 3 task(s), repeat=5
-  polars-quickstart (claude:claude-opus-5): pass rate 100% [5/5 evidential of 5 run(s)]
-  duckdb-quickstart (claude:claude-opus-5): pass rate 60% [3/5 evidential of 5 run(s)]
-      failed after: https://duckdb.org/docs/stable/clients/python/overview (2x)
-  fastapi-quickstart (claude:claude-opus-5): pass rate 75% [3/4 evidential of 5 run(s)]
-      discarded: infra_error=1
-  tokens: 1204 in / 38210 out, cache 402113 written / 1889222 read
-  wall clock: 512.3s
-==============================================================
+  duckdb-quickstart (claude:claude-haiku-4-5-20251001): pass rate 100% [2/2 evidential of 3 run(s)]
+      discarded: budget_exhausted=1
+      failed after: https://duckdb.org/docs/clients/python/overview (1x)
+  fastapi-quickstart (claude:claude-haiku-4-5-20251001): pass rate 0% [0/3 evidential of 3 run(s)]
+      failed after: https://fastapi.tiangolo.com/tutorial/first-steps/ (3x)
+  polars-quickstart (claude:claude-haiku-4-5-20251001): pass rate 100% [3/3 evidential of 3 run(s)]
+  uv-quickstart (claude:claude-haiku-4-5-20251001): pass rate 67% [2/3 evidential of 3 run(s)]
+      failed after: https://docs.astral.sh/uv/guides/projects/ (1x)
 ```
 
-Read the DuckDB line as: five attempts, all five produced evidence, three
-passed. Read the FastAPI line as: five attempts, one died on a rate limit and
-was thrown away, three of the remaining four passed.
+Read the DuckDB line as: three attempts, one ran out of turns and was thrown
+away, and both of the remaining two passed. The rate is 100% over two samples,
+which is a weaker claim than 100% over three and is reported as such.
+
+Read the FastAPI line as: three attempts, all three produced evidence, none
+passed, and every one of them was on the same page when it went wrong. Three out
+of three on one page is the strongest signal this tool emits.
+
+The uv line is the ambiguous case, and the common one: two passes, one failure,
+no way to tell from three runs whether that is a real gap or variance. Raise the
+repeat count before drawing a conclusion from a number like it.
 
 ## Classifications
 

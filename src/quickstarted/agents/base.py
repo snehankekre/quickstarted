@@ -107,7 +107,16 @@ class Toolbelt:
             truncated=original > _FETCH_LIMIT,
             from_cache=result.from_cache,
             content_hash=result.content_hash,
+            # Present when the requested URL was a client-side redirect stub, so
+            # the record says which page the agent asked for and which it got.
+            **({"resolved_to": result.url} if result.followed_from else {}),
         )
+        if result.followed_from:
+            self.trace.add(
+                "docs_redirect_followed",
+                requested=result.followed_from,
+                resolved_to=result.url,
+            )
         if result.changed:
             self.trace.add("docs_changed", url=url, content_hash=result.content_hash)
         return body

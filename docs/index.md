@@ -11,17 +11,30 @@ your documentation, and nothing else. A script you wrote decides whether it
 succeeded.
 
 ```
-[FAIL] duckdb-quickstart (claude:claude-opus-5)
+[FAIL] fastapi-quickstart (openai:gpt-5.2-2025-12-11)
   classification: docs_gap
-  turns: 14, duration: 88.1s
-  backend: docker
-  success check exit code: 1
-  last docs page read before failure: https://duckdb.org/docs/stable/clients/python/overview
+  turns: 7, duration: 65.7s
+  backend: docker (python:3.12-slim)
+  success check exit code: 1 (	pip install "fastapi[standard]")
+  last docs page read before failure: https://fastapi.tiangolo.com/tutorial/first-steps/
+  docs pages read: 1
 ```
 
-That last line is the product. The harness owns the only tool that can read
-documentation, so the pages in the report are the pages the agent really read,
-and the one it was on when things went wrong is a fact rather than a guess.
+That is a real run, and the last two lines are the product. The harness owns the
+only tool that can read documentation, so the pages in the report are the pages
+the agent really read, and the one it was on when things went wrong is a fact
+rather than a guess.
+
+What happened there: the model read the tutorial and ran `pip install fastapi`.
+The page says `pip install "fastapi[standard]"`, and without the extra there is
+no server, so nothing could run the app it had just written. Claude Opus 5
+installs the extra and passes the same task every time.
+
+Which is worth being precise about, because it shows what this measures and what
+it does not. The run proves a reader arrived at a broken result and names the page
+they were on. It cannot tell you whether the page buried something important or
+the model simply skipped it. Both are worth knowing and they are different
+problems, so the report gives you the page and leaves the judgement to you.
 
 ## Start here
 

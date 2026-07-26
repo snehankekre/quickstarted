@@ -143,3 +143,87 @@ def test_probe_treats_an_html_shell_as_absent(fake_http):
     found = client.probe("https://x.dev/docs")
     assert found["llms.txt"].present is False
     assert "HTML" in found["llms.txt"].note
+
+
+@pytest.mark.parametrize(
+    "html, expected",
+    [
+        (
+            '<meta http-equiv="refresh" content="0; url=https://d.org/real.html">',
+            "https://d.org/real.html",
+        ),
+        # Unquoted attribute, single quotes, and a relative target all appear in
+        # the wild; duckdb.org uses the first form.
+        ("<meta http-equiv=refresh content='0;URL=/docs/real'>", "https://d.org/docs/real"),
+        # A bare filename resolves against the directory, not the host root.
+        (
+            "<meta HTTP-EQUIV='REFRESH' CONTENT='0; url=other.html'>",
+            "https://d.org/docs/other.html",
+        ),
+        ('<meta name="description" content="0; url=/nope">', ""),
+        ("<html><body>no redirect here</body></html>", ""),
+    ],
+)
+def test_meta_refresh_target(html, expected):
+    from quickstarted.docs import _meta_refresh_target
+
+    assert _meta_refresh_target(html, "https://d.org/docs/page") == expected
+
+
+def test_client_side_redirect_is_followed(fake_http):
+    """A stub page must not be handed to the agent as if it were documentation.
+
+    duckdb.org answers its own versioned URLs with 938 bytes of HTML that render
+    as 73 characters of "Redirecting...". A browser follows the meta refresh, so
+    an agent with one reads the docs and an agent without reads nothing.
+    """
+    calls, pages = fake_http
+    stub = '<html><head><meta http-equiv="refresh" content="0; url=https://d.org/real.html">' \
+           "</head><body>Redirecting&hellip;</body></html>"
+    pages["https://d.org/docs/page"] = (200, "text/html", stub)
+    pages["https://d.org/real.html"] = (200, "text/html", "<p>duckdb.connect() opens a database</p>")
+
+    client = DocsClient(rate_limit_seconds=0, respect_robots=False)
+    result = client.get("https://d.org/docs/page")
+
+    assert "duckdb.connect" in result.text
+    assert result.url == "https://d.org/real.html"
+    assert result.followed_from == "https://d.org/docs/page"
+    assert calls == ["https://d.org/docs/page", "https://d.org/real.html"]
+
+
+def test_client_side_redirect_off_host_is_not_followed(fake_http):
+    """Following a stub off-host would read a page the task never allowlisted."""
+    calls, pages = fake_http
+    stub = '<meta http-equiv="refresh" content="0; url=https://elsewhere.test/x.html">'
+    pages["https://d.org/docs/page"] = (200, "text/html", stub)
+    pages["https://elsewhere.test/x.html"] = (200, "text/html", "<p>off host</p>")
+
+    client = DocsClient(rate_limit_seconds=0, respect_robots=False)
+    result = client.get("https://d.org/docs/page")
+
+    assert result.url == "https://d.org/docs/page"
+    assert result.followed_from == ""
+    assert calls == ["https://d.org/docs/page"]
+
+
+def test_followed_redirect_survives_the_cache(fake_http, tmp_path):
+    """The cache is keyed on what was asked for, so a rerun is one hit."""
+    calls, pages = fake_http
+    pages["https://d.org/docs/page"] = (
+        200, "text/html",
+        '<meta http-equiv="refresh" content="0; url=https://d.org/real.html">',
+    )
+    pages["https://d.org/real.html"] = (200, "text/html", "<p>real content</p>")
+
+    first = DocsClient(cache_dir=str(tmp_path), rate_limit_seconds=0, respect_robots=False)
+    first.get("https://d.org/docs/page")
+    assert len(calls) == 2
+
+    second = DocsClient(cache_dir=str(tmp_path), rate_limit_seconds=0, respect_robots=False)
+    result = second.get("https://d.org/docs/page")
+    assert result.from_cache
+    assert "real content" in result.text
+    assert result.url == "https://d.org/real.html"
+    assert result.followed_from == "https://d.org/docs/page"
+    assert len(calls) == 2, "a rerun must not re-fetch or re-follow"
