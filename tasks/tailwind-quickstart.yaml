@@ -12,18 +12,20 @@ docs:
 success:
   script: |
     set -e
-    test -f index.html
-    test -f out.css
-    grep -q "text-3xl" index.html
-    grep -q "font-bold" index.html
-    # Tailwind only emits a utility it saw used, so finding these rules proves
-    # the build actually scanned index.html.
-    grep -q "font-weight" out.css
+    fail() { echo "check failed: $1"; exit 1; }
+    test -f index.html || fail "index.html was never created"
+    test -f out.css || fail "out.css was never built"
+    grep -q "text-3xl" index.html || fail "index.html does not use text-3xl"
+    grep -q "font-bold" index.html || fail "index.html does not use font-bold"
+    # Tailwind only emits a utility it saw used, so finding these rules proves the
+    # build actually scanned index.html.
     node -e '
       const css = require("fs").readFileSync("out.css", "utf8");
       for (const cls of ["text-3xl", "font-bold"]) {
         if (!css.includes("." + cls)) {
-          throw new Error("out.css has no rule for ." + cls);
+          console.log("check failed: out.css has no rule for ." + cls +
+            ", so the build did not scan index.html");
+          process.exit(1);
         }
       }
     '

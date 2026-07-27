@@ -3,6 +3,32 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-07-27
+
+A failure that cannot be diagnosed is barely a failure. This release is about
+making every one of them say what it saw.
+
+### Added
+
+- `quickstarted run` flags a success check that printed nothing:
+
+  ```
+    success check exit code: 1
+    note: the check printed nothing, so this failure cannot be diagnosed.
+  ```
+
+  A `docs_gap` names the page the agent was reading. Without check output it
+  names a page and no reason, and sends the reader off to a page that may be
+  perfectly fine.
+
+### Changed
+
+- Every task in this repo now names the assertion that failed. Six of them could
+  previously exit 1 in silence, including `uv-quickstart`, where a run that read
+  four pages of documentation and then failed said nothing about why. They now
+  report lines like `check failed: httpx is not a dependency in pyproject.toml`.
+- `guides/writing-tasks.md` shows the `fail()` pattern the tasks use.
+
 ## [0.3.0] - 2026-07-26
 
 Breaking, and deliberately early. The unit of testing is now a **task**, not a

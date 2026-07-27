@@ -153,3 +153,48 @@ def test_replay_requires_replay_commands(tmp_path):
     result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")
     assert result.outcome.stop_reason == "error"
     assert "replay" in result.outcome.detail
+
+
+def _summary_for_check(output: str) -> str:
+    """A failed run whose success check printed `output`."""
+    from quickstarted.agents.base import AgentOutcome
+    from quickstarted.run import DOCS_GAP, RunResult, ScoreResult
+    from quickstarted.task import Task
+    from quickstarted.trace import Trace
+
+    task = Task(
+        name="t",
+        goal="g",
+        docs_entrypoint="https://example.com/",
+        docs_allow=("example.com",),
+        success_script="false",
+    )
+    return console_summary(
+        RunResult(
+            task,
+            "replay",
+            AgentOutcome("completed", 1),
+            ScoreResult(False, 1, output),
+            Trace(),
+            1.0,
+            "/tmp/x",
+            classification=DOCS_GAP,
+        )
+    )
+
+
+def test_silent_check_is_called_out():
+    """A failure nobody can diagnose should say so, rather than just exit 1.
+
+    A docs_gap names a page. Without check output it names a page and no reason,
+    which sends the reader to a page that may be perfectly fine.
+    """
+    summary = _summary_for_check("")
+    assert "success check exit code: 1" in summary
+    assert "printed nothing" in summary
+
+
+def test_a_check_that_speaks_gets_no_lecture():
+    summary = _summary_for_check("check failed: app.py was never created")
+    assert "app.py was never created" in summary
+    assert "printed nothing" not in summary

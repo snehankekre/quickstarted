@@ -13,9 +13,11 @@ setup:
 success:
   script: |
     set -e
-    test -f demo.py
-    .venv/bin/python -c "import pnf; assert callable(pnf.decode)"
-    .venv/bin/python demo.py
+    fail() { echo "check failed: $1"; exit 1; }
+    test -f demo.py || fail "demo.py was never created"
+    .venv/bin/python -c "import pnf; assert callable(pnf.decode)" \
+      || fail "pnf is not importable, or pnf.decode is missing"
+    .venv/bin/python demo.py || fail "demo.py exited non-zero"
 budgets:
   max_turns: 15
   max_seconds: 600

@@ -66,6 +66,14 @@ def console_summary(result: RunResult) -> str:
                 f"  success check exit code: {result.score.exit_code}"
                 + (f" ({check_line[-1]})" if check_line else "")
             )
+            if not check_line:
+                # A verdict nobody can act on. The exit code says the run failed
+                # and nothing says why, which for a docs_gap means the report
+                # names a page without naming a reason.
+                lines.append(
+                    "  note: the check printed nothing, so this failure cannot be "
+                    "diagnosed. Have it say what it saw."
+                )
         if result.classification == DOCS_GAP and result.suspect_page:
             lines.append(f"  last docs page read before failure: {result.suspect_page}")
     return "\n".join(lines)

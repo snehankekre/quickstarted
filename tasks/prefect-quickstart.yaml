@@ -16,14 +16,16 @@ setup:
 success:
   script: |
     set -e
-    test -f flow.py
-    test -f total.txt
-    # The flow has to be a Prefect flow, not a plain function that happens to
+    fail() { echo "check failed: $1"; exit 1; }
+    test -f flow.py || fail "flow.py was never created"
+    test -f total.txt || fail "total.txt was never written, so the flow never ran"
+    # The flow has to be a Prefect flow, and not a plain function that happens to
     # produce the right number.
-    grep -q "@flow" flow.py
-    .venv/bin/python -c "import prefect"
+    grep -q "@flow" flow.py || fail "flow.py has no @flow decorator"
+    .venv/bin/python -c "import prefect" || fail "prefect is not installed in .venv"
     # Assert the arithmetic, so any correct route through the API passes.
-    test "$(tr -d '[:space:]' < total.txt)" = "108"
+    got=$(tr -d '[:space:]' < total.txt)
+    test "$got" = "108" || fail "total.txt says '$got', expected 108"
 budgets:
   max_turns: 25
   max_seconds: 600

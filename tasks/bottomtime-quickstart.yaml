@@ -12,8 +12,11 @@ setup:
 success:
   script: |
     set -e
-    .venv/bin/bottomtime --help > help.txt 2>&1
-    grep -q ingest help.txt
+    fail() { echo "check failed: $1"; exit 1; }
+    .venv/bin/bottomtime --help > help.txt 2>&1 \
+      || fail "the bottomtime command is not installed or would not run"
+    grep -q ingest help.txt \
+      || fail "bottomtime --help does not mention the ingest command"
 budgets:
   max_turns: 15
   max_seconds: 600

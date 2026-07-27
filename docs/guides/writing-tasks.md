@@ -108,6 +108,32 @@ exception with `continue`, and print it once the loop gives up. "Connection
 refused" and "HTTP 200 with the wrong body" are different bugs in your
 documentation, and a bare exit code cannot tell them apart.
 
+For a check with several assertions, one line each is enough. A shell function
+keeps it short, and `|| fail` stops `set -e` from aborting before the message
+prints:
+
+```yaml
+success:
+  script: |
+    set -e
+    fail() { echo "check failed: $1"; exit 1; }
+    test -f pyproject.toml || fail "no pyproject.toml, so uv never created a project"
+    test -f uv.lock || fail "no uv.lock, so the project was never locked"
+    grep -q httpx pyproject.toml || fail "httpx is not a dependency in pyproject.toml"
+```
+
+That run reports `check failed: httpx is not a dependency in pyproject.toml`
+instead of `exit code: 1`, which is the difference between a page to go and read
+and a page to go and guess about. Every task in this repo is written this way.
+
+`quickstarted run` says so when a check stays quiet:
+
+```
+  success check exit code: 1
+  note: the check printed nothing, so this failure cannot be diagnosed.
+        Have it say what it saw.
+```
+
 ## Assert the data
 
 Check the outcome the documentation promises. Do not check how the agent got

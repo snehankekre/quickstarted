@@ -16,15 +16,19 @@ docs:
 success:
   script: |
     set -e
-    test -f pyproject.toml
-    test -f uv.lock
-    test -f main.py
+    fail() { echo "check failed: $1"; exit 1; }
+    test -f pyproject.toml || fail "no pyproject.toml, so uv never created a project"
+    test -f uv.lock || fail "no uv.lock, so the project was never locked"
+    test -f main.py || fail "main.py was never created"
     # httpx has to be a declared dependency of the project, not just installed
     # into some environment the agent made.
-    grep -q httpx pyproject.toml
+    grep -q httpx pyproject.toml \
+      || fail "httpx is not a dependency in pyproject.toml"
     # And the project environment uv built has to actually import it.
-    .venv/bin/python -c "import httpx"
-    .venv/bin/python main.py | grep -qx ok
+    .venv/bin/python -c "import httpx" \
+      || fail "httpx is not importable from the project environment uv built"
+    .venv/bin/python main.py | grep -qx ok \
+      || fail "main.py did not print exactly 'ok'"
 budgets:
   max_turns: 25
   max_seconds: 600

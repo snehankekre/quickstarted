@@ -19,9 +19,11 @@ setup:
 success:
   script: |
     set -e
-    test -f fetch.py
-    grep -q "import httpx" fetch.py
-    .venv/bin/python fetch.py | grep -q "200"
+    fail() { echo "check failed: $1"; exit 1; }
+    test -f fetch.py || fail "fetch.py was never created"
+    grep -q "import httpx" fetch.py || fail "fetch.py does not import httpx"
+    .venv/bin/python fetch.py | grep -q "200" \
+      || fail "running fetch.py did not print a 200 status code"
 budgets:
   max_turns: 15
   max_seconds: 600
