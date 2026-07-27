@@ -1,7 +1,6 @@
 # quickstarted
 
-Test whether an AI agent can actually complete your quickstart by following
-your docs.
+Test whether an AI agent can complete your quickstart using only your docs.
 
 [![CI](https://github.com/snehankekre/quickstarted/actions/workflows/ci.yml/badge.svg)](https://github.com/snehankekre/quickstarted/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/quickstarted.svg)](https://pypi.org/project/quickstarted/)

@@ -1,14 +1,11 @@
 # quickstarted
 
-> Test whether an AI agent can complete your quickstart by following your docs.
+> Test whether an AI agent can complete your quickstart using only your docs.
 
-Roughly half the traffic to documentation sites is now AI agents and
-AI-assisted workflows. When an agent reads your quickstart and fails, you lose
-the developer behind it and you never find out.
-
-quickstarted turns that into a CI signal. A sandboxed agent gets your goal,
-your documentation, and nothing else. A script you wrote decides whether it
-succeeded.
+The agent gets your documentation and nothing else: no browser, no search
+engine, no network of its own, and a prompt that forbids leaning on what it
+already knows about your project. A script you wrote decides whether it got
+there. When it does not, you get the page it was reading.
 
 ```
 [FAIL] fastapi-quickstart (openai:gpt-5.2-2025-12-11)

@@ -1,4 +1,5 @@
-"""quickstarted: test whether an AI agent can complete your quickstart.
+"""quickstarted: test whether an AI agent can complete your quickstart using
+only your docs.
 
 Tasks (YAML) state a goal, a docs entrypoint, and a machine-checkable
 success assertion. The harness runs an agent in a sandbox whose only docs

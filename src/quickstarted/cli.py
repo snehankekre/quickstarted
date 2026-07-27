@@ -196,7 +196,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="quickstarted",
         description=(
-            "Test whether an AI agent can complete your quickstart from your docs alone."
+            "Test whether an AI agent can complete your quickstart using only your docs."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
