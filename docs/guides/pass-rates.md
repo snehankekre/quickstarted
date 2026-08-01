@@ -92,3 +92,37 @@ sweep from behaving like a scraper.
 Wall clock improves; token cost does not. Concurrency also raises your chance
 of being rate-limited by the model vendor, which shows up as `infra_error`
 rather than as failed documentation.
+
+## Did the documentation change help?
+
+```bash
+quickstarted run --agent claude --repeat 10 --out before/
+# edit the page
+quickstarted run --agent claude --repeat 10 --out after/
+quickstarted diff before/results.json after/results.json
+```
+
+```
+  fastapi-quickstart
+      2/10 (20%)  ->  8/10 (80%)
+      improved, p=0.023
+```
+
+The p-value is a two-sided Fisher exact test on passes and failures. It is
+there because the honest answer to "3/5 became 4/5" is that nothing was
+measured, and a tool that prints `+20 points` without saying so is inviting
+somebody to publish it.
+
+The more useful line is the one that appears when the experiment was too small
+to answer the question at all:
+
+```
+      inside the noise, and no result at 3 vs 3 runs could have cleared
+      p<0.05 (best possible p=0.100)
+```
+
+At three attempts a side, no outcome clears the bar, including a clean sweep
+from nothing to everything. Four is the smallest number that can. Budget for
+that before spending, not after reading a result you cannot use.
+
+Full flags: [quickstarted diff](../reference/cli.md#quickstarted-diff).

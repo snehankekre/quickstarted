@@ -9,11 +9,9 @@ branding:
 
 inputs:
   tasks:
-    description: Space-separated task files or a glob (e.g. tasks/*.yaml)
-    required: false
-    default: ""
-  journeys:
-    description: Deprecated name for `tasks`, honoured until 0.4.0
+    description: >
+      Space-separated task files, a directory, or a glob. Leave empty to run
+      every task in tasks/.
     required: false
     default: ""
   agent:
@@ -36,14 +34,42 @@ inputs:
     description: Execution backend; docker is the enforced one on Linux runners
     required: false
     default: docker
+  image:
+    description: >
+      Container image for tasks that do not name their own. The default
+      python:3.12-slim has no Node.
+    required: false
+    default: ""
   affordances:
     description: "all (default) or none, to withhold llms.txt and .md variants"
     required: false
     default: all
+  probe-affordances:
+    description: Record which machine-facing files exist (context, never scored)
+    required: false
+    default: "false"
+  cache-dir:
+    description: >
+      Content-addressed documentation cache. Point actions/cache at it and
+      reruns read the same bytes, which is what makes two runs comparable.
+    required: false
+    default: ""
+  prices:
+    description: Path to a price book JSON file, for cost estimates
+    required: false
+    default: ""
+  max-spend:
+    description: Stop once the estimated cost reaches this many dollars
+    required: false
+    default: ""
   python-version:
     description: Python version to run with
     required: false
     default: "3.12"
+  working-directory:
+    description: Directory to run in, for a monorepo whose docs live in a subtree
+    required: false
+    default: "."
   out:
     description: Directory for traces and reports
     required: false
@@ -52,6 +78,22 @@ inputs:
     description: Path for a JUnit XML report (empty to skip)
     required: false
     default: ""
+  github-summary:
+    description: Append the markdown report to the job summary
+    required: false
+    default: "true"
+  strict-inconclusive:
+    description: >
+      Fail the job when any run produced no evidence. Off by default, because a
+      rate limit is not a broken quickstart.
+    required: false
+    default: "false"
+  allow-unenforced:
+    description: >
+      Permit the local backend, whose network policy is advisory. Only for tasks
+      and projects you wrote yourself.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -63,29 +105,20 @@ runs:
       shell: bash
       run: |
         case "${{ inputs.agent }}" in
-          claude) pip install "quickstarted[claude]" ;;
-          openai) pip install "quickstarted[openai]" ;;
-          gemini) pip install "quickstarted[gemini]" ;;
+          claude) pip install "quickstarted[claude,prices]" ;;
+          openai) pip install "quickstarted[openai,prices]" ;;
+          gemini) pip install "quickstarted[gemini,prices]" ;;
           *)      pip install quickstarted ;;
         esac
     - name: Report what this runner can enforce
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: quickstarted doctor
     - name: Run tasks
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: |
         files="${{ inputs.tasks }}"
-        if [ -z "$files" ]; then
-          files="${{ inputs.journeys }}"
-          if [ -n "$files" ]; then
-            echo "::warning::The 'journeys' input was renamed to 'tasks' in" \
-                 "0.3.0 and is removed in 0.4.0."
-          fi
-        fi
-        if [ -z "$files" ]; then
-          echo "::error::Set the 'tasks' input to the task files to run."
-          exit 1
-        fi
         args=(run $files
           --agent "${{ inputs.agent }}"
           --backend "${{ inputs.backend }}"
@@ -95,4 +128,12 @@ runs:
           --out "${{ inputs.out }}")
         if [ -n "${{ inputs.model }}" ]; then args+=(--model "${{ inputs.model }}"); fi
         if [ -n "${{ inputs.junit }}" ]; then args+=(--junit "${{ inputs.junit }}"); fi
+        if [ -n "${{ inputs.image }}" ]; then args+=(--image "${{ inputs.image }}"); fi
+        if [ -n "${{ inputs.cache-dir }}" ]; then args+=(--cache-dir "${{ inputs.cache-dir }}"); fi
+        if [ -n "${{ inputs.prices }}" ]; then args+=(--prices "${{ inputs.prices }}"); fi
+        if [ -n "${{ inputs.max-spend }}" ]; then args+=(--max-spend "${{ inputs.max-spend }}"); fi
+        if [ "${{ inputs.probe-affordances }}" = "true" ]; then args+=(--probe-affordances); fi
+        if [ "${{ inputs.github-summary }}" = "true" ]; then args+=(--github-summary); fi
+        if [ "${{ inputs.strict-inconclusive }}" = "true" ]; then args+=(--strict-inconclusive); fi
+        if [ "${{ inputs.allow-unenforced }}" = "true" ]; then args+=(--allow-unenforced); fi
         quickstarted "${args[@]}"

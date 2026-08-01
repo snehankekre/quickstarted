@@ -65,3 +65,15 @@ The success script is not shown to the agent, and is not present in the
 workspace while the agent runs. An agent that could read the assertions would
 be able to satisfy them directly, and the run would measure instruction
 following instead of documentation.
+
+That holds for `success.file` too. The file is read when the task loads and
+carried as text, so it never touches the disk the agent can see, and a test
+makes an agent grep the workspace for its own criteria and find nothing.
+
+The helpers are the same story from the other side. `serve` and `wait_http`
+move the mechanism into the harness, which starts processes, polls, captures
+logs and prints diagnostics. They decide nothing. Every criterion still comes
+from the task file, which is why a task that serves without asserting anything
+is rejected at load rather than passing whenever the server boots. Nothing in
+the scoring path is under the vendor's control, and that is what keeps a
+published number falsifiable.

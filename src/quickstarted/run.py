@@ -31,6 +31,10 @@ BUDGET_EXHAUSTED = "budget_exhausted"
 INFRA_ERROR = "infra_error"
 HARNESS_ERROR = "harness_error"
 AGENT_REFUSAL = "agent_refusal"
+#: Nothing ran, and nothing was meant to. An agent-only task under `--agent
+#: replay` is not a failure and not a missing measurement; it is out of scope
+#: for the mode it was asked to run in.
+SKIPPED = "skipped"
 
 EVIDENTIAL = (PASSED, DOCS_GAP)
 
@@ -99,10 +103,14 @@ class RunResult:
 
 
 def classify(outcome: AgentOutcome, score: ScoreResult | None, trace: Trace) -> str:
+    if outcome.stop_reason == "skipped":
+        return SKIPPED
     if score and score.passed:
         return PASSED
     reason = outcome.stop_reason
     detail = (outcome.detail or "").lower()
+    if reason == "skipped":
+        return SKIPPED
     if reason == "refusal":
         return AGENT_REFUSAL
     if reason == "error":
@@ -135,10 +143,11 @@ def run_task(
     attempt: int = 1,
     docs: DocsClient | None = None,
     probe_affordances: bool = False,
+    on_event=None,
 ) -> RunResult:
     backend = resolve_backend(backend)
     docs = docs or DocsClient()
-    trace = Trace()
+    trace = Trace(listener=on_event)
     proxy: EgressProxy | None = None
     start = time.monotonic()
 
@@ -226,8 +235,14 @@ def run_task(
         deadline = time.monotonic() + task.budgets.max_seconds
         outcome = agent.run(task, toolbelt, deadline)
 
+        if outcome.stop_reason == "skipped":
+            # Nothing was attempted, so there is nothing to score. Running the
+            # check anyway would let a task whose assertions happen to hold in
+            # an empty workspace report itself as passed.
+            return finish(outcome, None)
+
         check = executor.run(
-            task.success_script,
+            task.check_script,
             timeout=task.budgets.max_command_seconds,
             max_output_chars=task.budgets.max_output_chars,
         )

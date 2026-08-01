@@ -17,7 +17,7 @@ from xml.etree import ElementTree as ET
 
 from ._version import __version__
 from .pricing import PriceBook
-from .run import PASSED, RunResult
+from .run import PASSED, SKIPPED, RunResult
 from .suite import SuiteResult
 
 #: 2.0 renamed the `journey`/`journeys` keys to `task`/`tasks`. Nothing else
@@ -70,6 +70,7 @@ def suite_document(suite: SuiteResult, prices: PriceBook | None = None) -> dict:
                 "evidential_runs": len(stat.evidential),
                 "pass_rate": stat.pass_rate,
                 "discarded": stat.discarded,
+                "skipped": stat.skipped,
                 "models_reported": stat.models_seen,
                 "suspect_pages": stat.suspect_pages,
                 "tokens": stat.tokens(),
@@ -89,10 +90,15 @@ def suite_document(suite: SuiteResult, prices: PriceBook | None = None) -> dict:
         },
         "repeat": suite.repeat,
         "duration_seconds": round(suite.duration, 2),
+        # A partial sweep is still evidence, but a reader comparing two
+        # documents needs to know that one of them stopped early.
+        "interrupted": suite.interrupted,
         "totals": {
             "runs": len(suite.runs),
             "tokens": suite.tokens(),
             "estimated_cost_usd": suite.cost(prices),
+            # Named so a consumer can tell a complete total from a partial one.
+            "unpriced_models": list(suite.unpriced_models(prices)),
         },
         "tasks": tasks,
     }
@@ -127,6 +133,12 @@ def junit_xml(suite: SuiteResult) -> str:
                 time=f"{run.duration:.2f}",
             )
             if run.classification == PASSED:
+                continue
+            if run.classification == SKIPPED:
+                # JUnit has a word for this, and it is not "error".
+                ET.SubElement(
+                    case, "skipped", message=run.outcome.detail or "not run in this mode"
+                )
                 continue
             if run.evidential:
                 failures += 1

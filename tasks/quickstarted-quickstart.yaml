@@ -15,9 +15,10 @@ setup:
 success:
   script: |
     set -e
-    test -f mine.yaml
-    test -f validated.txt
-    grep -q "^ok" validated.txt
+    test -f mine.yaml || qs_fail "no mine.yaml, so no task file was ever written"
+    test -f validated.txt || qs_fail "no validated.txt, so the tool's output was never saved"
+    grep -q "^ok" validated.txt \
+      || qs_fail "validated.txt does not start with ok: $(head -c 120 validated.txt)"
     # The task the agent wrote must be one the tool actually accepts, and
     # must say what the goal asked for.
     .venv/bin/quickstarted validate mine.yaml

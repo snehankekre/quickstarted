@@ -19,10 +19,13 @@ class ReplayAgent:
 
     def run(self, task: Task, toolbelt: Toolbelt, deadline: float) -> AgentOutcome:
         if not task.replay:
+            # Not an error. A task can legitimately be agent-only, and a suite
+            # of them used to report "no evidence" on every push, which reads
+            # like something broke rather than like there was nothing to run.
             return AgentOutcome(
-                stop_reason="error",
+                stop_reason="skipped",
                 turns=0,
-                detail="task has no 'replay' commands; replay mode needs them",
+                detail="task has no 'replay' commands",
             )
         toolbelt.fetch(task.docs_entrypoint)
         for i, command in enumerate(task.replay, start=1):

@@ -62,7 +62,21 @@ def build_profile(sandbox: Path, proxy_port: int | None, real_home: Path) -> str
         # Loopback DNS and similar helpers travel over unix sockets; the proxy
         # resolves real hostnames on the agent's behalf.
         lines.append("(allow network-outbound (remote unix-socket))")
-        lines.append("(allow network-bind (local ip \"localhost:*\"))")
+        # Loopback, so a task can start the server its quickstart documents and
+        # then ask it a question. Three rules, and all three are needed:
+        # `network-bind` does not match a `localhost:*` filter (it silently
+        # refuses the bind, which is why every serve-and-poll task failed under
+        # this backend), `accept` is inbound, and polling is outbound.
+        #
+        # This is wider than Docker, where the sandbox has its own network
+        # namespace and loopback reaches nothing but the task. Here a command
+        # can also reach services the developer happens to be running on their
+        # own machine. Remote egress stays denied, so the guarantee that matters
+        # (documentation hosts are unreachable from the shell, and every page
+        # read is recorded) is untouched.
+        lines.append('(allow network-bind (local ip "*:*"))')
+        lines.append('(allow network-inbound (local ip "localhost:*"))')
+        lines.append('(allow network-outbound (remote ip "localhost:*"))')
     return "\n".join(lines) + "\n"
 
 
@@ -70,12 +84,17 @@ class SeatbeltExecutor(ProcessExecutor):
     name = "seatbelt"
     enforced = True
 
-    def __init__(self, keep: bool = False, proxy_url: str | None = None):
+    def __init__(
+        self,
+        keep: bool = False,
+        proxy_url: str | None = None,
+        workspace: Path | None = None,
+    ):
         if not available():
             raise ExecutorError(
                 "seatbelt backend requires macOS with /usr/bin/sandbox-exec"
             )
-        super().__init__(keep=keep, proxy_url=proxy_url)
+        super().__init__(keep=keep, proxy_url=proxy_url, workspace=workspace)
         port = None
         if proxy_url:
             port = int(proxy_url.rsplit(":", 1)[-1].strip("/"))

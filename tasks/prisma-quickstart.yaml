@@ -18,7 +18,7 @@ network:
 success:
   script: |
     set -e
-    test -f out.json
+    test -f out.json || qs_fail "no out.json, so nothing was ever read back from the database"
     # Assert the data that came back out of the database, not the code that put
     # it there.
     node -e '
@@ -30,8 +30,10 @@ success:
       if (ada.id === undefined) throw new Error("no id on the row");
     '
     # And that it really was Prisma against SQLite.
-    test -n "$(find . -path ./node_modules -prune -o -name "schema.prisma" -print | head -1)"
-    test -n "$(find . -path ./node_modules -prune -o -name "*.db" -print | head -1)"
+    test -n "$(find . -path ./node_modules -prune -o -name "schema.prisma" -print | head -1)" \
+      || qs_fail "no schema.prisma, so the rows did not come from Prisma"
+    test -n "$(find . -path ./node_modules -prune -o -name "*.db" -print | head -1)" \
+      || qs_fail "no .db file, so nothing was stored in SQLite"
 budgets:
   max_turns: 35
   max_seconds: 900

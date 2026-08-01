@@ -41,6 +41,24 @@ Results record the model the API actually served, which is often more specific
 than what you asked for. An alias can start resolving to a new build without
 telling you, and a pass-rate trend across a silent change means nothing.
 
+## Watching it happen
+
+A run prints each documentation page as the agent reads it, along with anything
+the sandbox refused and the check's exit code:
+
+```
+  [    0s] started on docker
+  [    3s] read https://www.python-httpx.org/
+  [   19s] blocked from the shell: checkip.amazonaws.com
+  [   24s] check exited 0
+```
+
+That exists because a run used to print nothing at all until it finished, and
+under `--repeat 5 --workers 3` that is minutes of silence while spending money,
+during which a slow model and a hung container look identical. `--verbose` adds
+every shell command the agent runs, `--quiet` turns the stream off, and lines
+carry the task and attempt when more than one is in flight.
+
 ## What a run leaves behind
 
 The summary names the last page read before a failure, which is where to start

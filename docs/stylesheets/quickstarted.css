@@ -1,0 +1,160 @@
+/* quickstarted docs theme.
+ *
+ * Material's defaults with the edges tightened. The pages are mostly terminal
+ * output, YAML, and small tables of classifications, so the work here is
+ * making those three read well and leaving everything else alone.
+ */
+
+:root {
+  --qs-rule: rgba(0, 0, 0, 0.10);
+  --qs-surface: #fbfbfa;
+  --qs-pass: #1a7f4b;
+  --qs-fail: #b3261e;
+  --md-code-font: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+[data-md-color-scheme="slate"] {
+  --qs-rule: rgba(255, 255, 255, 0.14);
+  --qs-surface: rgba(255, 255, 255, 0.035);
+  --qs-pass: #5bd18e;
+  --qs-fail: #ff8a80;
+  /* Material's slate is blue-tinted by default. Neutral grey keeps the ink
+     and paper feel of the light scheme rather than switching moods. */
+  --md-hue: 220;
+  --md-default-bg-color: hsl(220, 12%, 10%);
+}
+
+/* Type: slightly tighter and darker than Material's default, which is set for
+   long prose rather than reference material read in short bursts. */
+.md-typeset {
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "tnum" 1;
+  letter-spacing: -0.003em;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 620;
+  letter-spacing: -0.018em;
+}
+
+.md-typeset h1 {
+  color: var(--md-default-fg-color);
+}
+
+/* A hairline under section headings, the one piece of ornament. */
+.md-typeset h2 {
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--qs-rule);
+}
+
+/* The blockquote directly under each h1 is the page's one-line summary. */
+.md-typeset h1 + blockquote {
+  border-left: 2px solid var(--md-accent-fg-color);
+  background: none;
+  padding-left: 0.9rem;
+  margin-left: 0;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset h1 + blockquote p {
+  margin: 0;
+}
+
+/* Code: the terminal blocks are the receipts, so give them room and stop the
+   long ones from setting the page's horizontal scroll. */
+.md-typeset pre > code {
+  font-size: 0.74rem;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+/* One frame, not two. Material wraps a fenced block as
+   `.highlight > pre > code`, so bordering both draws a box inside a box. */
+.md-typeset .highlight {
+  border: 1px solid var(--qs-rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.md-typeset .highlight > pre,
+.md-typeset .highlight > pre > code {
+  border: 0;
+  margin: 0;
+  border-radius: 0;
+}
+
+/* A block with no language never gets the wrapper, so it carries its own. */
+.md-typeset > pre {
+  border: 1px solid var(--qs-rule);
+  border-radius: 4px;
+}
+
+.md-typeset code {
+  font-size: 0.78em;
+  border-radius: 3px;
+}
+
+/* PASS and FAIL carry meaning in every sample block on the site. */
+.md-typeset pre code .qs-pass,
+.md-typeset .highlight span.qs-pass {
+  color: var(--qs-pass);
+  font-weight: 600;
+}
+
+/* Tables: these are mostly field references and classification lists, so make
+   the header row do the separating and let the rows sit quietly. */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--qs-rule);
+  border-radius: 4px;
+  font-size: 0.72rem;
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--qs-surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.md-typeset table:not([class]) td:first-child code,
+.md-typeset table:not([class]) th:first-child {
+  white-space: nowrap;
+}
+
+/* Wide tables scroll inside themselves rather than pushing the page sideways. */
+.md-typeset__table {
+  overflow-x: auto;
+}
+
+/* The cards on the landing page. */
+.md-typeset .grid.cards > ul > li {
+  border: 1px solid var(--qs-rule);
+  border-radius: 5px;
+  transition: border-color 120ms, transform 120ms;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: var(--md-accent-fg-color);
+  transform: translateY(-1px);
+}
+
+/* Links keep the underline: on a page this dense, colour alone is not enough
+   to find them, and it is the accessible default anyway. */
+.md-typeset a {
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: 1px;
+}
+
+/* The header is black in both schemes; keep its bottom edge from disappearing
+   into a dark page. */
+.md-header {
+  border-bottom: 1px solid var(--qs-rule);
+  box-shadow: none;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary {
+    border-right: 1px solid var(--qs-rule);
+  }
+}

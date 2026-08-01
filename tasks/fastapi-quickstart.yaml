@@ -11,60 +11,10 @@ docs:
 setup:
   - python3 -m venv .venv
 success:
-  script: |
-    set -e
-    test -f app.py
-    # The harness decides whether it really serves: start it, ask it, stop it.
-    #
-    # Whichever documented way of serving is available, because the tutorial
-    # leads with `fastapi dev` while uvicorn is the older instruction, and
-    # requiring one of them measures my expectation rather than the docs. That
-    # mistake cost three runs: an agent that installed plain `fastapi` rather
-    # than `fastapi[standard]` had no uvicorn, and a working app was recorded as
-    # a documentation gap.
-    if [ -x .venv/bin/fastapi ]; then
-      .venv/bin/fastapi run app.py --host 127.0.0.1 --port 8611 > server.log 2>&1 &
-    elif .venv/bin/python -c "import uvicorn" 2>/dev/null; then
-      .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8611 \
-        > server.log 2>&1 &
-    else
-      echo "neither the fastapi CLI nor uvicorn is installed, so nothing can serve app.py"
-      exit 1
-    fi
-    pid=$!
-    # `if !` rather than a bare call, so a failure does not trip `set -e` before
-    # the diagnostics below get a chance to run. The exit code is the verdict,
-    # but the output is the bug report, and a check that fails silently tells
-    # whoever reads the result nothing they can act on.
-    status=0
-    # The image ships without curl, so ask over Python's stdlib.
-    if ! .venv/bin/python - <<'PY'
-    import json, sys, time, urllib.request
-
-    last = "never attempted"
-    for _ in range(40):
-        time.sleep(1)
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:8611/items/42", timeout=5) as r:
-                body = r.read().decode("utf-8", "replace")[:400]
-            try:
-                if json.loads(body).get("item_id") == 42:
-                    sys.exit(0)
-                last = f"HTTP 200 but wrong body: {body}"
-            except ValueError:
-                last = f"HTTP 200 but not JSON: {body}"
-        except Exception as exc:
-            last = f"{type(exc).__name__}: {exc}"
-    print(f"GET /items/42 never answered correctly. Last attempt: {last}")
-    sys.exit(1)
-    PY
-    then
-      status=1
-      echo "--- server.log (last 20 lines) ---"
-      tail -20 server.log 2>/dev/null || echo "(no server.log; the server never started)"
-    fi
-    kill "$pid" 2>/dev/null || true
-    exit $status
+  # The check has to choose between two documented ways of serving, which the
+  # declarative form deliberately cannot express, so it is a shell file using
+  # the qs_* helpers.
+  file: checks/fastapi.sh
 budgets:
   max_turns: 20
   max_seconds: 480

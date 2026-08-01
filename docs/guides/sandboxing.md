@@ -11,7 +11,7 @@ follow that instruction.
 | Backend | Filesystem | Network | Use for |
 | --- | --- | --- | --- |
 | `docker` | container, workspace bind-mounted | internal network with no route out; the proxy sidecar is the only exit | anything, including CI |
-| `seatbelt` (macOS) | reads of your home denied, writes confined to the workspace | all egress denied except the proxy port | local development |
+| `seatbelt` (macOS) | reads of your home denied, writes confined to the workspace | all remote egress denied; the proxy and loopback allowed | local development |
 | `local` | none | none; the proxy variables are advisory | tasks and projects you wrote yourself |
 
 ```bash
@@ -74,8 +74,8 @@ scripts that need `curl` should install it or use Python instead.
 
 macOS ships `sandbox-exec`, which applies a policy in the kernel. quickstarted
 generates a profile that denies everything by default, then allows reads of the
-system prefix, reads and writes inside the workspace, and outbound connections
-to one loopback port: the harness proxy.
+system prefix, reads and writes inside the workspace, outbound connections to
+the harness proxy, and loopback.
 
 ```
 (deny default)
@@ -83,7 +83,22 @@ to one loopback port: the harness proxy.
 (deny file-read* (subpath "/Users/you"))
 (allow file-write* (subpath "/var/folders/.../quickstarted-abc123"))
 (allow network-outbound (remote ip "localhost:53821"))
+(allow network-bind (local ip "*:*"))
+(allow network-inbound (local ip "localhost:*"))
+(allow network-outbound (remote ip "localhost:*"))
 ```
+
+The last three are what let a task start the server its quickstart documents and
+then ask it a question. All three are needed, and the shape is not obvious:
+`network-bind` does not honour a `localhost:*` filter, so a profile that looks
+like it permits loopback binding refuses the `bind()` outright. Every
+serve-and-poll task failed under this backend until 0.4.0 for that reason.
+
+This is wider than Docker, where the sandbox has its own network namespace and
+loopback reaches nothing but the task. Here a command can also reach services
+you happen to be running on your own machine. Remote egress stays denied either
+way, so the guarantee that matters is untouched: documentation hosts are
+unreachable from the shell and every page read goes through the recorded tool.
 
 A bypass attempt dies in the kernel:
 

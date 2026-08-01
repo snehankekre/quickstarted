@@ -8,14 +8,28 @@ copyright: MIT licensed
 
 theme:
   name: material
+  # Faces a devtools reader already reads. Novelty in type costs more than it
+  # returns on a documentation site, and the numbers in these pages are the
+  # point, so the mono face has to be one that lines them up.
+  font:
+    text: Inter
+    code: JetBrains Mono
   features:
     - navigation.sections
     - navigation.top
     - navigation.tracking
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.footer
     - content.code.copy
+    - content.code.annotate
     - content.action.edit
+    - content.tabs.link
     - search.suggest
+    - search.highlight
     - toc.follow
+  icon:
+    repo: fontawesome/brands/github
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -31,6 +45,9 @@ theme:
       toggle:
         icon: material/weather-sunny
         name: Light mode
+
+extra_css:
+  - stylesheets/quickstarted.css
 
 # Every page is also served as raw Markdown, and llms.txt is generated from the
 # nav below. A tool that tests documentation for agents should be legible to

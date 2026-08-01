@@ -2,8 +2,8 @@
 
 > Every field of a task file, and what the loader rejects.
 
-A task is YAML. Unknown keys under `budgets` and `network` are errors, so a
-typo fails loudly instead of being ignored.
+A task is YAML. Unknown keys under `success`, `budgets` and `network` are
+errors, so a typo fails loudly instead of being ignored.
 
 ```yaml
 name: duckdb-quickstart
@@ -107,20 +107,91 @@ resulting gap in attribution.
 
 ## success
 
-| Field | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `script` | string | yes | Shell script run after the agent stops |
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `script` | string | Shell run after the agent stops |
+| `file` | path | A shell file to run instead, relative to the task file |
+| `serve` | string | A long-running command to background first |
+| `wait_http` | mapping | Poll an endpoint until it answers as you say it should |
 
-Runs in the same workspace, under the same backend, with the same scrubbed
-environment. Exit code 0 is a pass. No other signal is consulted, and no model
-sees this script.
+At least one of `script` and `file` is required, and they are mutually
+exclusive. The check runs in the same workspace, under the same backend, with
+the same scrubbed environment. Exit code 0 is a pass. No other signal is
+consulted, and no model sees this script.
+
+The harness owns the mechanism. Every criterion is yours, which is why a task
+with `serve` and nothing that asserts anything is a validation error rather
+than a free pass: a server that boots and answers every request with a 500
+would otherwise pass.
+
+### file
+
+```yaml
+success:
+  file: checks/fastapi.sh
+```
+
+The file is read when the task loads and carried as text, so shellcheck, syntax
+highlighting and `bash -n` all work on it. It is never written into the
+workspace. The workspace is the agent's own directory, and a success script it
+could read is an answer key.
+
+### serve and wait_http
+
+```yaml
+success:
+  serve: .venv/bin/fastapi run app.py --host 127.0.0.1 --port $QS_PORT
+  wait_http:
+    path: /items/42
+    json:
+      item_id: 42
+  script: test -f app.py
+```
+
+`$QS_PORT` is a free port picked for this task, from a range derived from the
+task name so two tasks in one suite do not collide and a failure reproduces by
+hand. `wait_http` backgrounds nothing itself; it polls, keeps the last error
+instead of swallowing it, prints the server log when it gives up, and names the
+reason on the final line, where the console summary shows it.
+
+| `wait_http` field | Default | Meaning |
+| --- | --- | --- |
+| `path` | | Resolved against `http://127.0.0.1:$QS_PORT` |
+| `url` | | A full URL, when the server is somewhere else |
+| `status` | 200 | Status code the response must carry |
+| `contains` | | Literal text the body must contain; a string or a list |
+| `matches` | | Extended regular expression the body must match |
+| `json` | | Key/value pairs the body must carry |
+| `timeout` | 40 | Seconds to keep polling |
+
+`json` matches by regular expression rather than parsing, so it tolerates
+whitespace and quoting but knows nothing about nesting. When you need a real
+parse, write it in the script and assert there.
+
+### The helpers
+
+Whatever form you use, these functions are defined for the check:
+
+| Helper | What it does |
+| --- | --- |
+| `qs_fail "why"` | Print the reason and exit 1 |
+| `qs_serve <command...>` | Background a command, capturing its log |
+| `qs_wait_http <path\|url> [flags]` | The polling above, from shell |
+
+`qs_serve` and `qs_wait_http` are what the declarative form generates, so a
+check that outgrows the schema can drop to shell without losing anything.
+[tasks/checks/fastapi.sh][fa] does exactly that, because the FastAPI tutorial
+documents two ways to serve and requiring one of them would measure the task
+author's expectation rather than the documentation.
+
+[fa]: https://github.com/snehankekre/quickstarted/blob/main/tasks/checks/fastapi.sh
 
 ## budgets
 
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `max_turns` | 20 | Tool-use rounds before the run stops |
-| `max_seconds` | 900 | Wall clock for the agent phase |
+| `max_seconds` | 480 | Wall clock for the agent phase |
 | `max_command_seconds` | 300 | Timeout for one command |
 | `max_output_chars` | 20000 | Per command; head and tail are kept |
 | `max_tokens` | 0 | All four token counters combined; 0 is unlimited |
@@ -143,4 +214,34 @@ warning  pypi.org is declared a docs host, so the shell cannot reach it;
 
 Errors are fatal and exit 1: missing required fields, a non-http entrypoint, a
 list field that is not a list of strings, an allowlist entry with a path in it,
-unknown `budgets` or `network` keys.
+unknown keys under `success`, `budgets` or `network`.
+
+Warnings are about results rather than syntax, and every one of them describes a
+way to get a number that is wrong rather than low:
+
+- A check that requires `X/bin/` when neither `setup` nor `replay` creates it.
+  An agent that names its environment differently then fails a check it should
+  have passed.
+- A check that can exit non-zero while printing nothing, which reports a page
+  and no reason.
+- A task with no `replay` block, which replay-mode CI reports as inconclusive.
+- A registry declared as a documentation host, an attribution gap, or a Node
+  toolchain with no `image`.
+
+`--check-urls` also fetches each entrypoint, so a dead link surfaces before a
+sweep pays for it rather than after.
+
+## Editor support
+
+```bash
+quickstarted schema > task-schema.json
+```
+
+Task files scaffolded by `quickstarted init` carry the schema line already:
+
+```yaml
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
+```
+
+Any editor speaking the language server protocol then completes field names and
+marks unknown ones as you type.

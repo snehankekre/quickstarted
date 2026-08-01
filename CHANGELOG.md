@@ -3,6 +3,163 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-08-01
+
+The release about the hour between `pip install` and a task you trust, and
+about what happens after the run. Most of it exists because a badly written
+check does not produce a bad experience; it produces a wrong number, and
+nothing in the report says so.
+
+### Added: writing a task
+
+- **`success.file`**, a path to a shell file beside the task, so a check can be
+  shellchecked, syntax highlighted and read without counting YAML indentation.
+  It is read at load time and never written into the workspace: the workspace is
+  the agent's own directory, and a success script it could read is an answer key.
+  A test makes an agent grep for its own criteria and find nothing.
+- **`success.serve` and `success.wait_http`**, a declarative form for the
+  commonest hard check. The harness backgrounds the process, polls, keeps the
+  last error, prints the server log when it gives up, and names the reason on
+  the last line, which is the line the console summary shows. Four tasks in this
+  repo had their own copy of those twenty lines, and the copies were where the
+  `if !` idiom got dropped. The FastAPI check went from 53 lines to 20, and
+  Streamlit's from 37 to 9.
+- **`qs_serve`, `qs_wait_http` and `qs_fail`** are defined for every success
+  script. The declarative form generates calls to them, so a check that outgrows
+  the schema drops to shell without losing anything, which is what
+  `tasks/checks/fastapi.sh` does to keep supporting both documented ways of
+  serving.
+- **`quickstarted check TASK --sandbox PATH`** re-runs only the success script
+  against a workspace a `--keep-sandbox` run left behind. No model, no key, and
+  the same backend that judged the run: about a second per iteration instead of
+  a paid run per iteration. `--show` prints the script the harness will run.
+- **`quickstarted init URL`** scaffolds a task from a documentation URL, with
+  the allowlist derived from the host and a schema line for editor completion.
+  The result validates as written.
+- **`quickstarted schema`** prints a JSON Schema for task files, published at
+  `snehankekre.com/quickstarted/task-schema.json`. A test fails if the published
+  copy drifts from the code.
+- **`quickstarted.yaml`** for repo defaults, `run:` for flags and `tasks:` for
+  task fields. A flag you typed beats `run:`; a task file beats `tasks:`. It
+  refuses `agent`, `model`, `repeat` and `affordances`, because a file that
+  quietly changed which model served a task would make two runs incomparable
+  for a reason invisible in the command you typed.
+- **`validate` warnings for the mistakes that corrupt a pass rate**: a check
+  requiring an environment directory neither `setup` nor `replay` creates, which
+  is how a working run gets recorded as a documentation failure; a check that
+  can exit non-zero while printing nothing; and a task with no `replay` block.
+  `--check-urls` also fetches each entrypoint, so a dead link surfaces before a
+  sweep pays for it.
+
+### Added: getting to a first result
+
+- **Three example tasks ship inside the wheel** (`httpx`, `streamlit`, `vite`),
+  with `quickstarted examples` and `--example NAME`. `tasks/` is in the sdist
+  only, so a `pip install` user did not have the file the documentation told
+  them to start with. `uvx quickstarted run --example streamlit --agent replay`
+  now produces a real result with nothing installed and no key, which also
+  makes the tool usable from a JavaScript or Go project without adopting a
+  Python environment.
+- **`run` and `validate` find tasks on their own.** With no paths they read
+  `tasks/`, or the current directory. A path may be a file, a directory, or a
+  glob, and globs are expanded internally as well as by the shell, because
+  PowerShell hands `tasks/*.yaml` through literally and the documented command
+  died on Windows with 'no such file'. Validating nothing exits 3 rather than 0,
+  so a CI job in the wrong directory stops reporting success.
+- **A run says what it is doing while it does it.** Each documentation page as
+  the agent reads it, each blocked egress attempt, and the check's exit code.
+  `--repeat 5 --workers 3` printed nothing for minutes while spending money,
+  and a slow model looked exactly like a hung container. `--verbose` adds every
+  shell command, `--quiet` restores the old behaviour, and lines are labelled
+  with task and attempt when more than one is in flight.
+- **`doctor` covers the machine, not just Anthropic.** All three providers with
+  the environment variable each key came from, whether the Docker daemon
+  answers and the default image is pulled, which config file is in effect, and
+  whether the tasks it can find parse.
+
+### Added: reading a run back
+
+- **`quickstarted diff before/results.json after/results.json`**: pass rate
+  delta per task, suspect pages that appeared or cleared, classification
+  changes, and a two-sided Fisher exact test on every comparison. Exact rather
+  than approximate because the samples are tiny and `math.comb` costs nothing.
+  When no possible outcome at these sample sizes could have reached
+  significance it says so, which is more useful than a verdict: three attempts
+  a side can never clear p<0.05, and four can. Runs served by different models
+  are reported as not comparable rather than subtracted.
+  `--fail-on-regression` exits 1 when a rate dropped by more than noise.
+- **`quickstarted show`** renders a `trace.jsonl` as a transcript, and
+  **`quickstarted report`** turns a results directory into one self-contained
+  HTML page: pass rates, every gap with the check's own output and the page the
+  agent was on, transcripts folded away. No external stylesheet, script or
+  font, because a report that fetches anything renders differently for whoever
+  you sent it to.
+- **`--max-spend`** stops a sweep at a dollar ceiling, checked between runs and
+  never predicted ahead of one.
+- **`pip install "quickstarted[prices]"`** prices runs from `genai-prices`, so
+  dollars appear without a hand-written price book. No table of rates lives in
+  this repository, which is the rule that made the price book explicit in the
+  first place; a price book you supply still wins. `--refresh-prices` asks for
+  current rates before pricing. The extra needs Python 3.10, which genai-prices
+  requires and this package does not.
+- **`--github-summary`** appends the markdown report to `$GITHUB_STEP_SUMMARY`,
+  and a documentation gap emits `::error file=tasks/foo.yaml` with the check's
+  message and the last page read, so it lands beside the diff instead of inside
+  a log. The composite action gains the inputs it was missing: `image`,
+  `cache-dir`, `prices`, `max-spend`, `probe-affordances`,
+  `strict-inconclusive`, `allow-unenforced`, `github-summary`, and
+  `working-directory`.
+
+### Changed
+
+- **Exit codes distinguish what went wrong**, because "your quickstart is
+  broken" and "somebody else's API returned 429" need different people to do
+  different things: 0 passed, 1 a documentation gap, 2 no evidence at all, 3
+  usage, 130 interrupted. `--strict-inconclusive` collapses 2 into 1.
+- **An agent-only task under `--agent replay` is `skipped`, not a harness
+  error.** A suite of them reported "no evidence" on every push, which reads
+  like the tool is broken rather than like there was nothing to run. Skips stay
+  out of the discarded counts and appear in JUnit as `<skipped/>`.
+- **An interrupted sweep keeps the runs that finished.** `results.json` was
+  assembled only after the last run landed, so Ctrl-C on a forty-minute sweep
+  discarded everything it had already paid for. The document now records
+  `interrupted`, and the exit code is 130 so a wrapper can tell an abandoned
+  sweep from a red one.
+- **The `journeys/` path fallback is gone**, as 0.3.0 said it would be. A path
+  under `journeys/` now fails and the error names the `tasks/` path to use
+  instead. The deprecated `journeys` input on the Action is removed with it.
+- Unknown keys under `success` are now an error, matching `budgets` and
+  `network`, so a typo fails loudly instead of being ignored.
+- `budgets.max_seconds` defaults to 480 rather than 900. Every task in this repo
+  sets 420 or 480, so the old default quietly bought a task that omitted budgets
+  fifteen minutes of agent time.
+- `--out` writes every attempt at the same depth when `--repeat` is above one.
+  Attempt 1 used to sit a level above the rest, so anything walking the tree
+  needed a special case for it.
+
+### Fixed
+
+- **The seatbelt backend could not run any task that starts a server.** The
+  profile's `(allow network-bind (local ip "localhost:*"))` never matched, so
+  the bind was refused outright, and polling was denied separately because only
+  the proxy port was reachable. Binding now uses `"*:*"`, with inbound and
+  outbound allowed on loopback only. Remote egress stays denied, verified
+  directly: a TCP dial to a literal IP and an HTTP request to a remote host are
+  both refused, so documentation hosts remain unreachable from the shell.
+- **Six tasks in this repo could still fail in silence**, which 0.3.1 believed
+  it had finished. `prisma` and `vite` actually did it during a replay sweep,
+  reporting a documentation page with no reason to go and read it. Every shell
+  assertion in `django`, `duckdb`, `polars`, `prisma`, `vite` and
+  `quickstarted-quickstart` now names what it saw.
+- **A skipped run was still scored.** Its success check ran anyway, so a task
+  whose assertions happen to hold in an empty workspace reported `passed`
+  having done nothing at all.
+- **A model with no published price was dropped from the cost in silence**, so a
+  two-model sweep could report one model's spend as the whole figure. The
+  summary, the markdown report and `results.json` now name what is excluded.
+  Not hypothetical: neither the bundled nor the live genai-prices data prices
+  `claude-opus-5`, this tool's default model.
+
 ## [0.3.1] - 2026-07-27
 
 A failure that cannot be diagnosed is barely a failure. This release is about

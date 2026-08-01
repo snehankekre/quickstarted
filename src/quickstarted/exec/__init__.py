@@ -50,7 +50,9 @@ def make_executor(
     docs_hosts=(),
     image: str | None = None,
     trace=None,
+    workspace=None,
 ) -> Executor:
+    """Build an executor. `workspace` adopts a kept sandbox instead of making one."""
     if backend == "docker":
         return DockerExecutor(
             keep=keep,
@@ -58,11 +60,12 @@ def make_executor(
             docs_hosts=docs_hosts,
             image=image or _docker.DEFAULT_IMAGE,
             trace=trace,
+            workspace=workspace,
         )
     if backend == "seatbelt":
-        return SeatbeltExecutor(keep=keep, proxy_url=proxy_url)
+        return SeatbeltExecutor(keep=keep, proxy_url=proxy_url, workspace=workspace)
     if backend == "local":
-        return LocalExecutor(keep=keep, proxy_url=proxy_url)
+        return LocalExecutor(keep=keep, proxy_url=proxy_url, workspace=workspace)
     raise ExecutorError(f"unknown backend {backend!r}")
 
 

@@ -1,14 +1,86 @@
 # Cost and budgets
 
-> Token counts are always reported. Dollars appear only if you supply the
-> rates.
+> Token counts are always reported. Dollars need a source of rates, and the
+> figure says what is missing from it.
 
 ## Why no prices ship with the tool
 
 Vendor rates change. A price table baked into a benchmarking tool would keep
 producing numbers after it went stale, and those numbers would look exactly as
 authoritative as the correct ones. quickstarted reports tokens, which are
-facts, and converts to dollars only from a price book you provide.
+facts, and converts to dollars only from rates that come from somewhere
+maintained.
+
+Two places qualify. A price book you wrote:
+
+```bash
+export QUICKSTARTED_PRICES=prices.json
+```
+
+```json
+{
+  "claude-opus-5": {"input": 5.0, "output": 25.0, "cache_write": 6.25, "cache_read": 0.5}
+}
+```
+
+Or a package that tracks them for you:
+
+```bash
+pip install "quickstarted[prices]"
+```
+
+That pulls [genai-prices][gp], and costs then appear with no further setup. The
+principle holds because the rates live in a package somebody updates, not in a
+table in this repository that would rot quietly. A price book you supply always
+wins.
+
+genai-prices requires Python 3.10, while quickstarted supports 3.9. On 3.9 the
+extra installs nothing and a price book is the only route to dollars. Token
+counts are unaffected.
+
+[gp]: https://github.com/pydantic/genai-prices
+
+## When a model has no published price
+
+```
+  estimated cost: $0.0415
+  no published price for claude:claude-opus-5, so their tokens are not in that figure
+```
+
+A bundled price snapshot lags new models, and the models worth benchmarking are
+the new ones. Rather than quietly reporting a total that excludes one arm of a
+two-model sweep, the summary names what is missing, and `results.json` carries
+the same list under `totals.unpriced_models`.
+
+`--refresh-prices` asks for current rates before pricing, which helps when
+upstream has caught up. It is opt-in because a benchmarking run should not make
+a surprise network call to price itself.
+
+When upstream has not caught up, a price book is the answer. As of
+genai-prices 0.0.72 neither its bundled data nor its live data prices
+`claude-opus-5`, which is this tool's default model, so a Claude sweep that
+wants dollars still writes the four rates down by hand. Yours always wins over
+the package's.
+
+## Stopping before it gets expensive
+
+```bash
+quickstarted run --agent claude --repeat 5 --max-spend 10
+```
+
+The ceiling is checked between runs, never predicted ahead of one, because what
+a run costs is not knowable until it has happened. When it trips, the sweep
+stops, the runs that finished are written out as normal, and the exit code is
+130. The summary says so, since a document with fewer runs than you asked for
+has to explain itself:
+
+```
+  STOPPED AT THE SPEND LIMIT: these are the runs that finished. Attempts that
+  never started are absent, not failed.
+```
+
+Interrupting with Ctrl-C behaves the same way. The evidence you already paid
+for is kept.
 
 ## Reading the token line
 

@@ -36,6 +36,26 @@ quickstarted() {
 | `QUICKSTARTED_PRICES` | Path to a price book; `--prices` overrides it |
 | `QUICKSTARTED_SANDBOX_DIR` | Parent directory for Docker workspaces |
 
+Settings that would otherwise be repeated on every invocation belong in
+`quickstarted.yaml` instead. See [the CLI reference](cli.md#configuration-file).
+
+## Inside a success check
+
+| Variable | Meaning |
+| --- | --- |
+| `QS_PORT` | A free port, chosen for this task before the check runs |
+
+`$QS_PORT` comes from a range derived from the task name, so two tasks in one
+suite do not collide and a failure reproduces by hand. `success.serve` and
+`qs_wait_http` both default to it.
+
+```yaml
+success:
+  serve: .venv/bin/fastapi run app.py --port $QS_PORT
+  wait_http:
+    path: /items/42
+```
+
 ### QUICKSTARTED_SANDBOX_DIR
 
 The `docker` backend bind-mounts a fresh workspace into the container, which

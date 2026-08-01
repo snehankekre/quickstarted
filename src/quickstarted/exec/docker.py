@@ -98,19 +98,23 @@ class DockerExecutor:
         docs_hosts=(),
         image: str = DEFAULT_IMAGE,
         trace=None,
+        workspace: Path | None = None,
     ):
         if not available():
             raise ExecutorError(
                 "docker backend requires a running Docker daemon "
                 "(`docker info` must succeed)"
             )
-        self.keep = keep
+        # Never delete a directory somebody handed us.
+        self.keep = keep or workspace is not None
         self.image = image
         self.trace = trace
         # Nothing but the task's own files goes in here: HOME and TMPDIR point
         # at the container's filesystem, so a scaffolder that demands an empty
         # directory gets one.
-        self.root = _sandbox_root()
+        # A kept workspace is re-mounted at the same container path, /workspace,
+        # so anything inside it that recorded an absolute path still resolves.
+        self.root = workspace.resolve() if workspace is not None else _sandbox_root()
         # mkdtemp gives 0700 owned by the invoking user. Where the daemon remaps
         # container root to another uid (rootless Docker, userns-remap, some CI
         # runners), that uid cannot write the bind mount and every task dies

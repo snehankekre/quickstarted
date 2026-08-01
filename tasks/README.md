@@ -26,8 +26,8 @@ about twenty seconds.
 | `tailwind-quickstart` | tailwindcss.com | 14 lines | The build has to have scanned the HTML. |
 | `prisma-quickstart` | prisma.io/docs | 12 lines | A major version redesign; usually the hardest here. |
 | `django-quickstart` | docs.djangoproject.com | 23 lines | A multi-step tutorial, answered through Django's test client. |
-| `fastapi-quickstart` | fastapi.tiangolo.com | 20 lines | Booting a server and querying it. |
-| `streamlit-quickstart` | docs.streamlit.io | 22 lines | Polling an app's own health endpoint. |
+| `fastapi-quickstart` | fastapi.tiangolo.com | `checks/fastapi.sh` | A check in its own file, using the helpers. |
+| `streamlit-quickstart` | docs.streamlit.io | 9 lines | The declarative `serve` and `wait_http` form. |
 | `quickstarted-quickstart` | this project's docs | 11 lines | The tool tested against its own quickstart. |
 
 The check column is the length of the success script, which is the only thing
@@ -36,6 +36,12 @@ for passing it: the short checks are the representative ones, and the long ones
 are the strictest possible version of "does the thing actually work." Both are
 legitimate. See
 [writing tasks](https://snehankekre.com/quickstarted/guides/writing-tasks/).
+
+Two of them are worth reading side by side. `streamlit-quickstart` boots the app
+and polls its health endpoint in nine lines of YAML, using `serve` and
+`wait_http`. `fastapi-quickstart` needs to choose between two documented ways of
+serving, which the declarative form deliberately cannot express, so its check
+lives in `checks/fastapi.sh` and calls the same helpers by hand.
 
 The four Node tasks set `image: node:22-slim`, because the default
 `python:3.12-slim` has no Node. One `quickstarted run tasks/*.yaml` covers both

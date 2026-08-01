@@ -2,8 +2,36 @@
 
 > Point a model at real documentation and watch whether it can finish.
 
-A task states a goal, where the documentation lives, and a script that
-decides whether the goal was reached. Save this as `tasks/httpx.yaml`:
+## A result before you write anything
+
+```bash
+quickstarted run --example httpx --agent replay
+```
+
+```
+  [    0s] started on seatbelt
+  [    2s] read https://www.python-httpx.org/
+  [    6s] check exited 0
+[PASS] httpx-quickstart (replay)
+  classification: passed
+  turns: 3, duration: 5.6s
+  backend: seatbelt
+  docs pages read: 1
+```
+
+Three tasks ship with the package; `quickstarted examples` lists them. That one
+ran the commands the HTTPX documentation tells a reader to type, in a sandbox,
+and checked the result. No key, no cost.
+
+## Scaffold your own
+
+```bash
+quickstarted init https://www.python-httpx.org/
+```
+
+That writes `tasks/httpx-quickstart.yaml` with the entrypoint filled in, the
+allowlist derived from the host, and a schema line that gives any language
+server editor completion on every field. Fill in the goal and the check:
 
 ```yaml
 name: httpx-quickstart
@@ -19,31 +47,36 @@ setup:
 success:
   script: |
     set -e
-    test -f fetch.py
-    .venv/bin/python -c "import httpx"
-    .venv/bin/python fetch.py | grep -q 200
+    test -f fetch.py || qs_fail "no fetch.py, so the quickstart produced nothing"
+    .venv/bin/python -c "import httpx" || qs_fail "httpx is not installed"
+    .venv/bin/python fetch.py | grep -q 200 || qs_fail "fetch.py did not print 200"
 ```
 
-Three lines of shell are the entire scoring mechanism, and they assert exactly
+Four lines of shell are the entire scoring mechanism, and they assert exactly
 what the documentation promises a reader: a file, a working import, and the
-status code the page says you will see.
+status code the page says you will see. Each one says what it saw when it fails,
+because a verdict you cannot act on is barely a verdict.
 
 Check that it parses:
 
 ```bash
-quickstarted validate tasks/httpx.yaml
+quickstarted validate tasks/httpx-quickstart.yaml
 ```
 
 ```
-ok       tasks/httpx.yaml (httpx-quickstart, agent-only)
+ok       tasks/httpx-quickstart.yaml (httpx-quickstart, agent-only)
 ```
+
+`--check-urls` also fetches the entrypoint, which is worth doing once before you
+spend anything: an entrypoint that 404s produces a failure that looks exactly
+like a documentation gap.
 
 ## Run it
 
 ```bash
 pip install "quickstarted[claude]"
 export QUICKSTARTED_ANTHROPIC_API_KEY=sk-ant-...
-quickstarted run tasks/httpx.yaml --agent claude
+quickstarted run tasks/httpx-quickstart.yaml --agent claude
 ```
 
 ```
@@ -59,6 +92,8 @@ quickstarted run tasks/httpx.yaml --agent claude
 One page was enough. The model read the httpx landing page, installed the
 package, wrote `fetch.py`, ran it, and stopped. Your script then agreed.
 
+With no paths at all, `quickstarted run` reads every task in `tasks/`.
+
 ## What just happened
 
 The harness created a throwaway workspace, ran your `setup` commands in it, and
@@ -71,8 +106,8 @@ inside a sandbox whose one path to the network is a proxy the harness owns, and
 `curl https://www.python-httpx.org/` is refused and the attempt is recorded. So
 "docs pages read: 1" is a measurement.
 
-When the agent stopped, the harness ran `success.script` in the same workspace.
-Exit code 0 is a pass and nothing else is. The agent's own report of success is
+When the agent stopped, the harness ran your check in the same workspace. Exit
+code 0 is a pass and nothing else is. The agent's own report of success is
 recorded in the trace and never consulted. See
 [Deterministic scoring](../explanation/scoring.md).
 
@@ -95,7 +130,7 @@ the whole thing:
 
 ```
 GET /items/42 never answered correctly. Last attempt: Connection refused
---- server.log (last 20 lines) ---
+--- server log (last 20 lines) ---
 To use the fastapi command, please install "fastapi[standard]":
 
 	pip install "fastapi[standard]"
@@ -109,6 +144,18 @@ while Claude Opus 5 passed the same task eleven times out of eleven.
 Two models disagreeing on the same task is the normal case. See
 [pass rates](../guides/pass-rates.md).
 
+## Fix the check without paying for another run
+
+```bash
+quickstarted run tasks/httpx-quickstart.yaml --agent claude --keep-sandbox
+# ... sandbox kept at: /tmp/quickstarted-8ilw9l6v/workspace
+
+quickstarted check tasks/httpx-quickstart.yaml --sandbox /tmp/quickstarted-8ilw9l6v/workspace
+```
+
+`check` runs only the success script, against the workspace the run left behind,
+under the same backend. About a second, as many times as you like.
+
 ## Add a free precondition
 
 `--agent replay` runs the literal commands your documentation tells a reader to
@@ -121,13 +168,13 @@ replay:
     cat > fetch.py <<'PY'
     import httpx
 
-    print(httpx.get("https://www.python-httpx.org/").status_code)
+    print(httpx.get("https://pypi.org/simple/").status_code)
     PY
   - .venv/bin/python fetch.py
 ```
 
 ```bash
-quickstarted run tasks/httpx.yaml --agent replay
+quickstarted run tasks/httpx-quickstart.yaml --agent replay
 ```
 
 If the documented commands are broken, no reader stands a chance, and an agent

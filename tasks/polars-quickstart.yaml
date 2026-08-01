@@ -14,8 +14,8 @@ setup:
 success:
   script: |
     set -e
-    test -f script.py
-    test -f out.csv
+    test -f script.py || qs_fail "no script.py, so the quickstart produced no program"
+    test -f out.csv || qs_fail "no out.csv, so nothing was ever written out"
     # Assert the data, not the code: any correct route to the answer passes.
     .venv/bin/python - <<'PY'
     import csv
