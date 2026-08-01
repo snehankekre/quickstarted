@@ -9,11 +9,9 @@ branding:
 
 inputs:
   tasks:
-    description: Space-separated task files or a glob (e.g. tasks/*.yaml)
-    required: false
-    default: ""
-  journeys:
-    description: Deprecated name for `tasks`, honoured until 0.4.0
+    description: >
+      Space-separated task files, a directory, or a glob. Leave empty to run
+      every task in tasks/.
     required: false
     default: ""
   agent:
@@ -75,17 +73,6 @@ runs:
       shell: bash
       run: |
         files="${{ inputs.tasks }}"
-        if [ -z "$files" ]; then
-          files="${{ inputs.journeys }}"
-          if [ -n "$files" ]; then
-            echo "::warning::The 'journeys' input was renamed to 'tasks' in" \
-                 "0.3.0 and is removed in 0.4.0."
-          fi
-        fi
-        if [ -z "$files" ]; then
-          echo "::error::Set the 'tasks' input to the task files to run."
-          exit 1
-        fi
         args=(run $files
           --agent "${{ inputs.agent }}"
           --backend "${{ inputs.backend }}"
