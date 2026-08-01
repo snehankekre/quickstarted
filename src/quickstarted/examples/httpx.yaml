@@ -1,0 +1,33 @@
+# Example task against a third-party project, as a template for the
+# public benchmark. Success asserts only local, deterministic facts.
+#
+# The demo request targets a package registry, not the documentation site.
+# Documentation hosts are unreachable from the shell by design, so a task
+# whose own example fetches its docs site fails on policy and reads like a
+# documentation gap.
+name: httpx-quickstart
+goal: >
+  Following the HTTPX documentation, install httpx into the virtualenv in this
+  workspace and write a script fetch.py that uses httpx to GET
+  https://pypi.org/simple/ and prints the response status code. Run it.
+docs:
+  entrypoint: https://www.python-httpx.org/
+  allow:
+    - python-httpx.org
+setup:
+  - python3 -m venv .venv
+success:
+  script: |
+    set -e
+    fail() { echo "check failed: $1"; exit 1; }
+    test -f fetch.py || fail "fetch.py was never created"
+    grep -q "import httpx" fetch.py || fail "fetch.py does not import httpx"
+    .venv/bin/python fetch.py | grep -q "200" \
+      || fail "running fetch.py did not print a 200 status code"
+budgets:
+  max_turns: 15
+  max_seconds: 600
+replay:
+  - .venv/bin/pip install --quiet httpx
+  - printf 'import httpx\nr = httpx.get("https://pypi.org/simple/")\nprint(r.status_code)\n' > fetch.py
+  - .venv/bin/python fetch.py

@@ -148,6 +148,7 @@ def run_suite(
     docs=None,
     probe_affordances: bool = False,
     on_result: Callable[[RunResult], None] | None = None,
+    on_event: Callable[[str, int, object], None] | None = None,
 ) -> SuiteResult:
     start = time.monotonic()
     jobs = [
@@ -168,6 +169,11 @@ def run_suite(
             attempt=attempt,
             docs=docs,
             probe_affordances=probe_affordances and attempt == 1,
+            on_event=(
+                (lambda event: on_event(task.name, attempt, event))
+                if on_event
+                else None
+            ),
         )
 
     results: list[RunResult] = []

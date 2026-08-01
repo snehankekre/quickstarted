@@ -6,12 +6,13 @@ attributed to the docs page the agent was reading when things went wrong.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)
@@ -27,11 +28,19 @@ class Trace:
     # The egress proxy appends from its own threads while the agent loop
     # appends from the main one.
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    #: Called with each event as it happens, for anything that wants to watch a
+    #: run rather than read it afterwards. A run used to print nothing until it
+    #: finished, so a slow model and a hung container looked identical.
+    listener: Callable[[Event], None] | None = None
 
     def add(self, type: str, **data: Any) -> Event:
         event = Event(ts=time.time(), type=type, data=data)
         with self._lock:
             self.events.append(event)
+        if self.listener is not None:
+            # Never let a broken watcher take down a run that is costing money.
+            with contextlib.suppress(Exception):
+                self.listener(event)
         return event
 
     def of_type(self, *types: str) -> list[Event]:

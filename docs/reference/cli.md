@@ -2,6 +2,17 @@
 
 > Every command and flag. `quickstarted` and `qstart` are the same program.
 
+## quickstarted examples
+
+```bash
+quickstarted examples
+quickstarted run --example httpx --agent replay
+```
+
+Three tasks ship inside the package (`httpx`, `streamlit`, `vite`), so a
+`pip install` needs nothing cloned to produce a first result. `--example` works
+on `run` and `validate`.
+
 ## quickstarted init
 
 ```bash
@@ -63,11 +74,27 @@ before trusting any number the tool produces.
 ## quickstarted run
 
 ```bash
-quickstarted run TASK [TASK ...] [options]
+quickstarted run [TASK ...] [options]
 ```
 
 Exits 0 when every task passed every attempt that produced evidence, and 1
 otherwise.
+
+With no paths it runs every `.yaml` in `tasks/`, or in the current directory if
+there is no `tasks/`. A path may be a file, a directory, or a glob, and globs
+are expanded here as well as by the shell, because PowerShell hands
+`tasks/*.yaml` through literally.
+
+### Watching a run
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--verbose` | off | Also stream every shell command the agent runs |
+| `--quiet` | off | Print only the per-run summaries |
+
+A run prints each documentation page as the agent reads it, and the success
+check's exit code, so a slow model and a hung container stop looking identical.
+Under `--workers` above one, every line is labelled with its task and attempt.
 
 ### Agent selection
 

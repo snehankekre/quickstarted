@@ -85,16 +85,16 @@ def test_run_refuses_an_unenforced_backend_by_default(tmp_path, capsys):
     assert "REFUSING" in capsys.readouterr().err
 
 
-def test_legacy_journeys_path_still_resolves(tmp_path, capsys, monkeypatch):
-    """A CI config pinned to the pre-0.3 directory keeps working, with a warning."""
+def test_legacy_journeys_path_fails_and_says_where_to_look(tmp_path, capsys, monkeypatch):
+    """0.3.0 promised the fallback would go in 0.4.0, so it went."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / "tasks").mkdir()
     (tmp_path / "tasks" / "demo.yaml").write_text(TASK)
 
-    assert main(["validate", "journeys/demo.yaml"]) == 0
+    assert main(["validate", "journeys/demo.yaml"]) == 1
     captured = capsys.readouterr()
-    assert "renamed to 'tasks/'" in captured.err
-    assert "cli-demo" in captured.out
+    assert "removed in 0.4.0" in captured.err
+    assert "tasks/demo.yaml" in captured.err
 
 
 def test_missing_file_is_still_an_error(tmp_path, capsys, monkeypatch):
@@ -208,3 +208,115 @@ def test_a_malformed_config_is_reported_not_ignored(tmp_path, capsys, monkeypatc
     path.write_text(TASK)
     assert main(["validate", str(path)]) == 3
     assert "agent" in capsys.readouterr().err
+
+
+def test_run_discovers_tasks_when_given_none(tmp_path, capsys, monkeypatch):
+    import quickstarted.transport as transport
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tasks").mkdir()
+    (tmp_path / "tasks" / "a.yaml").write_text(TASK)
+    assert main(["run", "--agent", "replay", "--backend", "local", "--allow-unenforced"]) == 0
+    assert "cli-demo" in capsys.readouterr().out
+
+
+def test_a_directory_and_an_unexpanded_glob_both_work(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tasks").mkdir()
+    (tmp_path / "tasks" / "a.yaml").write_text(TASK)
+    assert main(["validate", "tasks"]) == 0
+    assert "cli-demo" in capsys.readouterr().out
+    # PowerShell hands the glob through literally.
+    assert main(["validate", "tasks/*.yaml"]) == 0
+    assert "cli-demo" in capsys.readouterr().out
+
+
+def test_validating_nothing_is_not_success(tmp_path, capsys, monkeypatch):
+    """A CI job in the wrong directory must not report success."""
+    monkeypatch.chdir(tmp_path)
+    assert main(["validate"]) == 3
+    assert "none found" in capsys.readouterr().err
+
+
+def test_examples_ship_in_the_package(capsys):
+    assert main(["examples"]) == 0
+    out = capsys.readouterr().out
+    assert "httpx" in out and "streamlit" in out
+
+
+def test_run_example_needs_no_task_file(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert main(["validate", "--example", "httpx"]) == 0
+    assert "httpx-quickstart" in capsys.readouterr().out
+
+
+def test_unknown_example_lists_the_real_ones(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert main(["validate", "--example", "nope"]) == 3
+    assert "available: httpx" in capsys.readouterr().err
+
+
+def test_a_run_reports_progress_while_it_happens(tmp_path, capsys, monkeypatch):
+    """Silence for four minutes makes a slow model and a hung container identical."""
+    import quickstarted.transport as transport
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    assert main(
+        ["run", str(path), "--agent", "replay", "--backend", "local",
+         "--allow-unenforced"]
+    ) == 0
+    out = capsys.readouterr().out
+    assert "read https://example.com/docs/" in out
+    assert "check exited 0" in out
+    # The shell stays out of the way until asked for.
+    assert "$ echo x > done.txt" not in out
+
+
+def test_verbose_streams_the_shell_and_quiet_streams_nothing(tmp_path, capsys, monkeypatch):
+    import quickstarted.transport as transport
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    base = ["run", str(path), "--agent", "replay", "--backend", "local",
+            "--allow-unenforced"]
+
+    assert main([*base, "--verbose"]) == 0
+    assert "$ echo x > done.txt" in capsys.readouterr().out
+
+    assert main([*base, "--quiet"]) == 0
+    out = capsys.readouterr().out
+    assert "read https://example.com/docs/" not in out
+    assert "PASS" in out
+
+
+def test_a_broken_watcher_cannot_kill_a_paid_run():
+    from quickstarted.trace import Trace
+
+    def explode(event):
+        raise RuntimeError("watcher bug")
+
+    trace = Trace(listener=explode)
+    trace.add("docs_fetch", url="https://example.com/")
+    assert trace.fetched_urls() == ["https://example.com/"]

@@ -1,0 +1,39 @@
+name: streamlit-quickstart
+goal: >
+  Install Streamlit into the virtualenv in this workspace and build a small app
+  in app.py that shows a title and a slider whose value is displayed on the
+  page. Do not start a long-running server yourself; just leave app.py ready to
+  run and confirm streamlit is installed.
+docs:
+  entrypoint: https://docs.streamlit.io/get-started
+  allow:
+    - docs.streamlit.io
+    - streamlit.io
+setup:
+  - python3 -m venv .venv
+success:
+  # The harness, not the agent, decides whether the app really runs: serve it
+  # headless and ask Streamlit's own health endpoint.
+  serve: >
+    .venv/bin/streamlit run app.py --server.headless true
+    --server.port $QS_PORT --browser.gatherUsageStats false
+  wait_http:
+    path: /_stcore/health
+    contains: ok
+  script: |
+    set -e
+    test -f app.py || qs_fail "no app.py, so the quickstart never produced an app"
+    .venv/bin/streamlit --version
+budgets:
+  max_turns: 20
+  max_seconds: 420
+replay:
+  - .venv/bin/pip install --quiet streamlit
+  - |
+    cat > app.py <<'PY'
+    import streamlit as st
+
+    st.title("Hello")
+    value = st.slider("Pick a number", 0, 100, 25)
+    st.write("You picked", value)
+    PY

@@ -135,10 +135,11 @@ def run_task(
     attempt: int = 1,
     docs: DocsClient | None = None,
     probe_affordances: bool = False,
+    on_event=None,
 ) -> RunResult:
     backend = resolve_backend(backend)
     docs = docs or DocsClient()
-    trace = Trace()
+    trace = Trace(listener=on_event)
     proxy: EgressProxy | None = None
     start = time.monotonic()
 
