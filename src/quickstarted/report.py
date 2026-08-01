@@ -53,12 +53,13 @@ def console_summary(result: RunResult) -> str:
     tokens = _token_line(result.outcome)
     if tokens:
         lines.append(f"  tokens: {tokens}")
-    fetched = result.trace.fetched_urls()
+    fetched = result.trace.pages_read()
     if fetched:
         lines.append(f"  docs pages read: {len(fetched)}")
     if result.bypass_attempts:
         lines.append(
-            f"  docs fetched outside read_docs: {result.bypass_attempts} blocked attempt(s)"
+            f"  docs read attempted outside read_docs: "
+            f"{result.bypass_attempts} blocked attempt(s)"
         )
     if not result.passed:
         if result.score is not None:
@@ -160,7 +161,7 @@ def markdown_report(result: RunResult) -> str:
             "is excluded from pass rates rather than counted as a failure.",
             "",
         ]
-    fetched = result.trace.fetched_urls()
+    fetched = result.trace.pages_read()
     if fetched:
         out += ["## Docs pages the agent read", ""]
         out += [f"1. {url}" for url in fetched]

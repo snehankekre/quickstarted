@@ -15,7 +15,7 @@ EVENTS = [
     {"ts": 100.0, "type": "run_start", "task": "t", "agent": "claude",
      "backend": "docker", "enforced": True, "attempt": 1},
     {"ts": 101.0, "type": "setup", "command": "python3 -m venv .venv", "exit_code": 0},
-    {"ts": 103.0, "type": "docs_fetch", "url": "https://example.com/", "chars": 10},
+    {"ts": 103.0, "type": "docs_read", "url": "https://example.com/", "chars": 10},
     {"ts": 104.0, "type": "tool_call", "tool": "bash", "command": "pip install thing"},
     {"ts": 106.0, "type": "tool_result", "tool": "bash", "exit_code": 1,
      "output": "could not find thing"},
@@ -48,6 +48,19 @@ def test_a_successful_command_stays_quiet_until_asked():
     events[4] = {**events[4], "exit_code": 0, "output": "installed fine"}
     assert "installed fine" not in render_text(events)
     assert "installed fine" in render_text(events, verbose=True)
+
+
+def test_a_trace_written_by_0_4_0_still_reads():
+    """0.4.0 called these `docs_fetch` and `fetch_blocked`. Its traces are on
+    disk in people's results directories and should not render as blank runs."""
+    events = [
+        {"ts": 100.0, "type": "docs_fetch", "url": "https://old.example/", "chars": 9},
+        {"ts": 101.0, "type": "fetch_blocked", "url": "https://evil.example/",
+         "reason": "outside_allowlist"},
+    ]
+    text = render_text(events)
+    assert "read https://old.example/" in text
+    assert "BLOCKED https://evil.example/ (outside_allowlist)" in text
 
 
 def test_an_unenforced_backend_is_called_out():

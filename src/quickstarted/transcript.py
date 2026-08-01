@@ -66,7 +66,7 @@ def render_text(events: list[dict], verbose: bool = False) -> str:
             )
         elif kind == "setup":
             lines.append(f"{stamp} setup: {event.get('command')}")
-        elif kind == "docs_fetch":
+        elif kind in ("docs_read", "docs_fetch"):
             note = " (cached)" if event.get("from_cache") else ""
             if event.get("truncated"):
                 note += (
@@ -74,7 +74,7 @@ def render_text(events: list[dict], verbose: bool = False) -> str:
                     f"{event.get('chars')} chars"
                 )
             lines.append(f"{stamp} read {event.get('url')}{note}")
-        elif kind in ("fetch_blocked", "affordance_withheld"):
+        elif kind in ("docs_read_blocked", "fetch_blocked", "affordance_withheld"):
             reason = event.get("reason", "withheld")
             lines.append(f"{stamp} BLOCKED {event.get('url')} ({reason})")
         elif kind == "egress_blocked":

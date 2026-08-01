@@ -89,7 +89,7 @@ class RunResult:
     def suspect_page(self) -> str | None:
         if self.passed:
             return None
-        return self.trace.last_fetch_before_failure()
+        return self.trace.last_page_read()
 
     @property
     def bypass_attempts(self) -> int:

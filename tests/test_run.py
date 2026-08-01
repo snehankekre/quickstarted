@@ -42,7 +42,7 @@ def test_replay_pass(tmp_path):
     assert result.passed
     assert result.outcome.stop_reason == "completed"
     # entrypoint was fetched and recorded
-    assert result.trace.fetched_urls() == ["https://example.com/docs/"]
+    assert result.trace.pages_read() == ["https://example.com/docs/"]
     assert "PASS" in console_summary(result)
 
 
@@ -155,10 +155,10 @@ def test_toolbelt_blocks_disallowed_hosts(tmp_path):
     try:
         trace = Trace()
         belt = Toolbelt(task, sb, trace, http_get=fake_http_get)
-        out = belt.fetch("https://evil.com/steal")
+        out = belt.read_docs("https://evil.com/steal")
         assert out.startswith("BLOCKED")
-        assert trace.fetched_urls() == []  # blocked fetches are not docs reads
-        assert any(e.type == "fetch_blocked" for e in trace.events)
+        assert trace.pages_read() == []  # blocked fetches are not docs reads
+        assert any(e.type == "docs_read_blocked" for e in trace.events)
     finally:
         sb.cleanup()
 
@@ -171,7 +171,7 @@ def test_html_is_converted_to_text(tmp_path):
     sb = Sandbox()
     try:
         belt = Toolbelt(task, sb, Trace(), http_get=fake_http_get)
-        out = belt.fetch("https://example.com/docs/")
+        out = belt.read_docs("https://example.com/docs/")
         assert "<html>" not in out
         assert "pip install thing" in out
     finally:

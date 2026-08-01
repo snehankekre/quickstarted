@@ -47,11 +47,17 @@ class Trace:
         with self._lock:
             return [e for e in self.events if e.type in types]
 
-    def fetched_urls(self) -> list[str]:
-        return [e.data["url"] for e in self.events if e.type == "docs_fetch"]
+    def pages_read(self) -> list[str]:
+        # `docs_fetch` is what 0.4.0 wrote for the same event, so a trace from
+        # that release still reads back rather than reporting no pages at all.
+        return [
+            e.data["url"]
+            for e in self.events
+            if e.type in ("docs_read", "docs_fetch")
+        ]
 
-    def last_fetch_before_failure(self) -> str | None:
-        urls = self.fetched_urls()
+    def last_page_read(self) -> str | None:
+        urls = self.pages_read()
         return urls[-1] if urls else None
 
     def write_jsonl(self, path: str | Path) -> None:

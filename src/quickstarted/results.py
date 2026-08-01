@@ -40,7 +40,7 @@ def _run_document(run: RunResult) -> dict:
         "backend": run.backend,
         "enforced": run.enforced,
         "image": run.image,
-        "docs_pages_read": run.trace.fetched_urls(),
+        "docs_pages_read": run.trace.pages_read(),
         "suspect_page": run.suspect_page,
         "docs_bypass_attempts": run.bypass_attempts,
         "success_check": (

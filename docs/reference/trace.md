@@ -7,7 +7,7 @@ with `ts` and `type` plus event-specific fields.
 
 ```bash
 quickstarted run tasks/x.yaml --agent claude --out results/
-jq -r 'select(.type == "docs_fetch") | .url' results/x/trace.jsonl
+jq -r 'select(.type == "docs_read") | .url' results/x/trace.jsonl
 ```
 
 ## Lifecycle
@@ -35,13 +35,19 @@ never scored.
 
 | Type | Fields | When |
 | --- | --- | --- |
-| `docs_fetch` | `url`, `chars`, `original_chars`, `truncated`, `from_cache`, `content_hash`, `resolved_to` | A page was read |
+| `docs_read` | `url`, `chars`, `original_chars`, `truncated`, `from_cache`, `content_hash`, `resolved_to` | A page was read |
 | `docs_redirect_followed` | `requested`, `resolved_to` | The page was a client-side redirect |
 | `docs_changed` | `url`, `content_hash` | `--refresh` saw different bytes |
-| `fetch_blocked` | `url`, `reason` | Outside the allowlist, robots, or offline |
-| `fetch_error` | `url`, `error` | The fetch itself failed |
+| `docs_read_blocked` | `url`, `reason` | Outside the allowlist, robots, or offline |
+| `docs_read_error` | `url`, `error` | The read itself failed |
 | `affordance_withheld` | `url` | Blocked by `--affordances none` |
 | `affordances` | `entrypoint`, `found` | `--probe-affordances` |
+
+One act has one name. The tool the model is offered is `read_docs`, and the
+events it writes are `docs_read`, `docs_read_blocked` and `docs_read_error`.
+0.4.0 wrote `docs_fetch`, `fetch_blocked` and `fetch_error` for the same three
+things; `quickstarted show` and `report` still read those, so a trace from that
+release does not render as a blank run, but nothing writes them any more.
 
 `truncated` is worth watching. A page too large to read in one call is an
 agent-experience defect in its own right, and `original_chars` tells you how
@@ -86,7 +92,7 @@ The only event that determines the verdict.
 
 ```bash
 # Which pages did the agent read, in order?
-jq -r 'select(.type=="docs_fetch") | .url' trace.jsonl
+jq -r 'select(.type=="docs_read") | .url' trace.jsonl
 
 # Did it try to read docs through the shell?
 jq 'select(.type=="egress_blocked" and .reason=="docs_host_requires_read_docs")' trace.jsonl

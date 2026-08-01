@@ -27,7 +27,7 @@ class ReplayAgent:
                 turns=0,
                 detail="task has no 'replay' commands",
             )
-        toolbelt.fetch(task.docs_entrypoint)
+        toolbelt.read_docs(task.docs_entrypoint)
         for i, command in enumerate(task.replay, start=1):
             if time.monotonic() > deadline:
                 return AgentOutcome(stop_reason="timeout", turns=i - 1)

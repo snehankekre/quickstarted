@@ -278,7 +278,7 @@ class ClaudeAgent:
                     else:
                         out = toolbelt.bash(tu.input.get("command", ""))
                 elif tu.name == "read_docs":
-                    out = toolbelt.fetch(tu.input.get("url", ""))
+                    out = toolbelt.read_docs(tu.input.get("url", ""))
                 else:
                     out = f"Unknown tool: {tu.name}"
                 results.append(

@@ -125,7 +125,7 @@ class GeminiAgent:
                 if call.name == "bash":
                     result = toolbelt.bash(arguments.get("command", ""))
                 elif call.name == "read_docs":
-                    result = toolbelt.fetch(arguments.get("url", ""))
+                    result = toolbelt.read_docs(arguments.get("url", ""))
                 else:
                     result = f"Unknown tool: {call.name}"
                 replies.append(

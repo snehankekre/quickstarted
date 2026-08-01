@@ -157,7 +157,7 @@ class OpenAIAgent:
                 if call.function.name == "bash":
                     result = toolbelt.bash(arguments.get("command", ""))
                 elif call.function.name == "read_docs":
-                    result = toolbelt.fetch(arguments.get("url", ""))
+                    result = toolbelt.read_docs(arguments.get("url", ""))
                 else:
                     result = f"Unknown tool: {call.function.name}"
                 messages.append(

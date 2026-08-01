@@ -473,14 +473,14 @@ def _make_watcher(verbose: bool, show_task: bool):
 
     def watch(task_name: str, attempt: int, event) -> None:
         kind = event.type
-        if kind == "docs_fetch":
+        if kind == "docs_read":
             detail = f"read {event.data.get('url', '')}"
         elif kind == "tool_call" and event.data.get("tool") == "bash":
             if not verbose:
                 return
             command = " ".join(str(event.data.get("command", "")).split())
             detail = f"$ {command[:90]}"
-        elif kind == "fetch_blocked":
+        elif kind == "docs_read_blocked":
             detail = f"BLOCKED {event.data.get('url', '')}"
         elif kind == "egress_blocked":
             detail = f"blocked from the shell: {event.data.get('host', '')}"

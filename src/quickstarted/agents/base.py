@@ -2,9 +2,14 @@
 
 Every agent, whatever the model or vendor, acts on the sandbox only through
 the Toolbelt. That is a deliberate design choice: because docs access flows
-through `fetch`, the harness records every page the agent reads (failure
+through `read_docs`, the harness records every page the agent reads (failure
 attribution) and enforces the task's host allowlist. Adapters never talk
 to the filesystem or network directly.
+
+One name for one thing: the tool the model is offered is `read_docs`, the
+method here is `read_docs`, and the events it writes are `docs_read`,
+`docs_read_blocked` and `docs_read_error`. Anyone reading a trace should not
+have to learn that three words mean the same act.
 """
 
 from __future__ import annotations
@@ -18,7 +23,7 @@ from ..task import Task
 from ..trace import Trace
 from ..transport import html_to_text
 
-_FETCH_LIMIT = 60_000
+_READ_LIMIT = 60_000
 
 
 class Toolbelt:
@@ -54,34 +59,34 @@ class Toolbelt:
         )
         return f"exit code: {result.exit_code}\n{result.output}"
 
-    def fetch(self, url: str) -> str:
-        self.trace.add("tool_call", tool="fetch", url=url)
+    def read_docs(self, url: str) -> str:
+        self.trace.add("tool_call", tool="read_docs", url=url)
         if not self.task.host_allowed(url):
             allowed = ", ".join(self.task.docs_allow)
             message = (
                 f"BLOCKED: {url} is outside this task's documentation allowlist "
                 f"({allowed}). Only the target project's docs may be read."
             )
-            self.trace.add("fetch_blocked", url=url)
+            self.trace.add("docs_read_blocked", url=url)
             return message
 
         if self._http_get is not None:  # legacy injection point, used by tests
             try:
                 content_type, body = self._http_get(url)
             except Exception as exc:
-                self.trace.add("fetch_error", url=url, error=str(exc))
-                return f"FETCH ERROR for {url}: {exc}"
+                self.trace.add("docs_read_error", url=url, error=str(exc))
+                return f"READ ERROR for {url}: {exc}"
             if "html" in content_type.lower():
                 body = html_to_text(body)
-            body = truncate(body, _FETCH_LIMIT)
-            self.trace.add("docs_fetch", url=url, chars=len(body))
+            body = truncate(body, _READ_LIMIT)
+            self.trace.add("docs_read", url=url, chars=len(body))
             return body
 
         try:
             result = self.docs.get(url)
         except Exception as exc:
-            self.trace.add("fetch_error", url=url, error=str(exc))
-            return f"FETCH ERROR for {url}: {exc}"
+            self.trace.add("docs_read_error", url=url, error=str(exc))
+            return f"READ ERROR for {url}: {exc}"
 
         if result.blocked_reason == "affordance_withheld":
             # Ablation condition: the file exists, the agent may not have it.
@@ -91,20 +96,20 @@ class Toolbelt:
                 "documentation pages."
             )
         if result.blocked_reason:
-            self.trace.add("fetch_blocked", url=url, reason=result.blocked_reason)
+            self.trace.add("docs_read_blocked", url=url, reason=result.blocked_reason)
             return f"BLOCKED: {url} ({result.blocked_reason})"
 
         body = result.text
         original = len(body)
-        body = truncate(body, _FETCH_LIMIT)
+        body = truncate(body, _READ_LIMIT)
         # A page too large to read is itself an agent-experience defect, so
         # record it rather than silently trimming.
         self.trace.add(
-            "docs_fetch",
+            "docs_read",
             url=url,
             chars=len(body),
             original_chars=original,
-            truncated=original > _FETCH_LIMIT,
+            truncated=original > _READ_LIMIT,
             from_cache=result.from_cache,
             content_hash=result.content_hash,
             # Present when the requested URL was a client-side redirect stub, so

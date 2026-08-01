@@ -318,8 +318,8 @@ def test_a_broken_watcher_cannot_kill_a_paid_run():
         raise RuntimeError("watcher bug")
 
     trace = Trace(listener=explode)
-    trace.add("docs_fetch", url="https://example.com/")
-    assert trace.fetched_urls() == ["https://example.com/"]
+    trace.add("docs_read", url="https://example.com/")
+    assert trace.pages_read() == ["https://example.com/"]
 
 
 def test_diff_command_compares_two_result_files(tmp_path, capsys):
