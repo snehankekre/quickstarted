@@ -79,7 +79,6 @@ scheduled job. One nightly failure means very little on its own.
 ```yaml
 - uses: snehankekre/quickstarted@v0
   with:
-    tasks: tasks/*.yaml
     agent: claude
     repeat: "3"
     backend: docker
@@ -87,7 +86,11 @@ scheduled job. One nightly failure means very little on its own.
 ```
 
 Inputs: `tasks`, `agent`, `model`, `repeat`, `workers`, `backend`,
-`affordances`, `python-version`, `out`, `junit`.
+`affordances`, `python-version`, `out`, `junit`. Leave `tasks` empty and the CLI
+runs everything in `tasks/`.
+
+The `journeys` input that 0.3.0 kept as a deprecated alias was removed in
+0.4.0, along with the `journeys/` path fallback.
 
 ## Rate limits should not read as broken docs
 

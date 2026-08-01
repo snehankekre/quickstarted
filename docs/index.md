@@ -2,6 +2,27 @@
 
 > Test whether an AI agent can complete your quickstart using only your docs.
 
+```bash
+uvx quickstarted run --example streamlit --agent replay
+```
+
+No API key, no cost, nothing to clone:
+
+```
+  [    0s] started on seatbelt
+  [    2s] read https://docs.streamlit.io/get-started
+  [   19s] blocked from the shell: checkip.amazonaws.com
+  [   20s] check exited 0
+[PASS] streamlit-quickstart (replay)
+  classification: passed
+  turns: 2, duration: 19.6s
+  backend: seatbelt
+  docs pages read: 1
+```
+
+The third line is the sandbox refusing Streamlit's own call home, which is what
+enforcement looks like from outside.
+
 The agent gets your documentation and nothing else: no browser, no search
 engine, no network of its own, and a prompt that forbids leaning on what it
 already knows about your project. A script you wrote decides whether it got
@@ -41,7 +62,8 @@ problems, so the report gives you the page and leaves the judgement to you.
 
     ---
 
-    One dependency plus the SDK for whichever model you point at your docs.
+    One dependency plus the SDK for whichever model you point at your docs, or
+    nothing at all with `uvx`.
 
     [Install](getting-started/install.md)
 
@@ -49,7 +71,7 @@ problems, so the report gives you the page and leaves the judgement to you.
 
     ---
 
-    Run an agent against real documentation in about five minutes.
+    Scaffold a task against real documentation and point a model at it.
 
     [First run](getting-started/first-run.md)
 

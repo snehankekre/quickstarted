@@ -2,8 +2,8 @@
 
 > Every field of a task file, and what the loader rejects.
 
-A task is YAML. Unknown keys under `budgets` and `network` are errors, so a
-typo fails loudly instead of being ignored.
+A task is YAML. Unknown keys under `success`, `budgets` and `network` are
+errors, so a typo fails loudly instead of being ignored.
 
 ```yaml
 name: duckdb-quickstart
