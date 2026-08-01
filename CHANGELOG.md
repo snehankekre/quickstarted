@@ -3,6 +3,47 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-08-01
+
+"I edited the page, did it help?" is the question this tool exists to answer,
+and until now it had no verb for it.
+
+### Added
+
+- **`quickstarted diff before/results.json after/results.json`**: pass rate
+  delta per task, suspect pages that appeared or cleared, classification
+  changes, and a two-sided Fisher exact test on every comparison. Exact rather
+  than approximate because the samples are tiny and `math.comb` costs nothing.
+  When no possible outcome at these sample sizes could have reached
+  significance it says so, which is more useful than a verdict: three attempts
+  a side can never clear p<0.05, and four can. Runs served by different models
+  are reported as not comparable rather than subtracted.
+  `--fail-on-regression` exits 1 when a rate dropped by more than noise.
+- **`--max-spend`** stops a sweep at a dollar ceiling, checked between runs and
+  never predicted ahead of one.
+- **`pip install "quickstarted[prices]"`** prices runs from `genai-prices`, so
+  dollars appear without a hand-written price book. No table of rates lives in
+  this repository, which is the rule that made the price book explicit in the
+  first place; a price book you supply still wins. `--refresh-prices` asks for
+  current rates before pricing.
+
+### Changed
+
+- **An interrupted sweep keeps the runs that finished.** `results.json` was
+  assembled only after the last run landed, so Ctrl-C on a forty-minute sweep
+  discarded everything it had already paid for. The document now records
+  `interrupted`, the summary says attempts that never started are absent rather
+  than failed, and the exit code is 130 so a wrapper can tell an abandoned sweep
+  from a red one.
+
+### Fixed
+
+- **A model with no published price was dropped from the cost in silence**, so a
+  two-model sweep could report one model's spend as the whole figure. The
+  summary, the markdown report and `results.json` now name what is excluded.
+  Not hypothetical: neither the bundled nor the live genai-prices data prices
+  `claude-opus-5`, this tool's default model.
+
 ## [0.4.0] - 2026-08-01
 
 Authoring a task was the part that needed a person to already know the tool.

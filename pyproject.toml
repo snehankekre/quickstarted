@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quickstarted"
-version = "0.4.0"
+version = "0.5.0"
 description = "Test whether an AI agent can complete your quickstart using only your docs"
 readme = "README.md"
 license = "MIT"
