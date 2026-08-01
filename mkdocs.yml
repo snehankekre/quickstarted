@@ -8,11 +8,12 @@ copyright: MIT licensed
 
 theme:
   name: material
-  # Faces a devtools reader already reads. Novelty in type costs more than it
-  # returns on a documentation site, and the numbers in these pages are the
-  # point, so the mono face has to be one that lines them up.
+  # Serif prose, mono structure, which is the system snehankekre.com already
+  # uses and this site is served from a path underneath it. Source Serif 4 is
+  # drawn for screens and holds up at body size; JetBrains Mono is tabular by
+  # default, and half of these pages are numbers that have to line up.
   font:
-    text: Inter
+    text: Source Serif 4
     code: JetBrains Mono
   features:
     - navigation.sections
@@ -30,18 +31,21 @@ theme:
     - toc.follow
   icon:
     repo: fontawesome/brands/github
+  # Colours are set in stylesheets/quickstarted.css rather than picked from
+  # Material's named list. Green and red already mean pass and fail in every
+  # console sample on this site, so the accent has to stay out of their lane.
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: black
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: black
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Light mode
@@ -68,6 +72,11 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true
+      # Puts `language-*` on the wrapper, which is what lets the stylesheet
+      # tell a command you type from output the tool printed. An untagged
+      # fence lands in `language-text`, and every untagged fence on this site
+      # is a console sample.
+      pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
 

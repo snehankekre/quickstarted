@@ -1,60 +1,198 @@
 /* quickstarted docs theme.
  *
- * Material's defaults with the edges tightened. The pages are mostly terminal
- * output, YAML, and small tables of classifications, so the work here is
- * making those three read well and leaving everything else alone.
+ * Two ideas, and everything else stays quiet.
+ *
+ * 1. Serif prose, mono structure. snehankekre.com already reads that way and
+ *    this site is served from a path underneath it.
+ * 2. Output the tool printed is set on a dark readout panel; commands you type
+ *    stay on paper. That distinction is already in the Markdown, where an
+ *    untagged fence means a console sample and a tagged one means something
+ *    you write. Nothing had ever drawn it.
+ *
+ * Green and red are load-bearing here: they mean pass and fail in every sample
+ * block. The accent stays out of their lane, which rules out most of the warm
+ * half of the wheel and lands on the cyan a terminal already uses for
+ * informational output.
  */
 
 :root {
-  --qs-rule: rgba(0, 0, 0, 0.10);
-  --qs-surface: #fbfbfa;
+  /* Ink is warm rather than blue-black, so the readout panel sits with paper
+     instead of looking like a screenshot dropped onto it. */
+  --qs-ink: #17161a;
+  --qs-ink-soft: #1d1c21;
+  --qs-paper: #faf9f6;
+  --qs-signal: #16706b;
+  --qs-signal-quiet: #55908c;
+  --qs-rule: rgba(23, 22, 26, 0.12);
+  --qs-surface: #f4f2ee;
   --qs-pass: #1a7f4b;
   --qs-fail: #b3261e;
+
+  /* Verdict colours as they read on the dark panel, which is where they
+     actually appear. */
+  --qs-pass-on-ink: #5bd18e;
+  --qs-fail-on-ink: #ff8a80;
+  --qs-dim-on-ink: rgba(255, 255, 255, 0.52);
+
   --md-code-font: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-[data-md-color-scheme="slate"] {
-  --qs-rule: rgba(255, 255, 255, 0.14);
-  --qs-surface: rgba(255, 255, 255, 0.035);
-  --qs-pass: #5bd18e;
-  --qs-fail: #ff8a80;
-  /* Material's slate is blue-tinted by default. Neutral grey keeps the ink
-     and paper feel of the light scheme rather than switching moods. */
-  --md-hue: 220;
-  --md-default-bg-color: hsl(220, 12%, 10%);
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: var(--qs-paper);
+  --md-default-fg-color: var(--qs-ink);
+  --md-default-fg-color--light: #55535c;
+  --md-default-fg-color--lighter: #6f6d77;
+  --md-default-fg-color--lightest: #c5c2cb;
+  --md-primary-fg-color: var(--qs-ink);
+  --md-primary-bg-color: var(--qs-paper);
+  --md-accent-fg-color: var(--qs-signal);
+  --md-typeset-a-color: var(--qs-signal);
+  /* A command you type sits on a warm tint of the paper, so the dark readout
+     panel below it is the only inversion on the page. */
+  --md-code-bg-color: #f1efea;
+  --md-code-fg-color: #37353d;
+  --md-footer-bg-color: var(--qs-ink);
+  --md-footer-bg-color--dark: #100f13;
+
+  /* Two hues inside a code block, not eight. The samples here are four-line
+     YAML and one-line commands, where a full syntax palette is decoration
+     that competes with the verdict colours for the reader's eye. Strings
+     carry the values you would change; comments step back; everything else
+     is ink. */
+  --md-code-hl-color: rgba(22, 112, 107, 0.16);
+  --md-code-hl-comment-color: #8a8792;
+  --md-code-hl-string-color: #41625f;
+  --md-code-hl-number-color: #41625f;
+  --md-code-hl-constant-color: #41625f;
+  --md-code-hl-keyword-color: var(--md-code-fg-color);
+  --md-code-hl-name-color: var(--md-code-fg-color);
+  --md-code-hl-function-color: var(--md-code-fg-color);
+  --md-code-hl-variable-color: var(--md-code-fg-color);
+  --md-code-hl-special-color: var(--md-code-fg-color);
+  --md-code-hl-generic-color: var(--md-code-fg-color);
+  --md-code-hl-operator-color: #77747f;
+  --md-code-hl-punctuation-color: #77747f;
 }
 
-/* Type: slightly tighter and darker than Material's default, which is set for
-   long prose rather than reference material read in short bursts. */
+[data-md-color-scheme="slate"] {
+  --qs-ink: #e8e6ea;
+  --qs-rule: rgba(255, 255, 255, 0.13);
+  --qs-surface: rgba(255, 255, 255, 0.04);
+  --qs-signal: #4fc4bb;
+  --qs-signal-quiet: #6f9c98;
+  --qs-pass: #5bd18e;
+  --qs-fail: #ff8a80;
+
+  --md-default-bg-color: #131215;
+  --md-default-fg-color: #e8e6ea;
+  --md-default-fg-color--light: #a5a2ad;
+  --md-default-fg-color--lighter: #8e8b96;
+  --md-default-fg-color--lightest: #4a4852;
+  --md-primary-fg-color: #131215;
+  --md-primary-bg-color: #e8e6ea;
+  --md-accent-fg-color: var(--qs-signal);
+  --md-typeset-a-color: var(--qs-signal);
+  --md-code-bg-color: #1c1b1f;
+  --md-code-fg-color: #d6d3da;
+  --md-footer-bg-color: #0e0d10;
+  --md-footer-bg-color--dark: #0a090c;
+
+  --md-code-hl-color: rgba(79, 196, 187, 0.18);
+  --md-code-hl-comment-color: #86828d;
+  --md-code-hl-string-color: #93bcb8;
+  --md-code-hl-number-color: #93bcb8;
+  --md-code-hl-constant-color: #93bcb8;
+  --md-code-hl-keyword-color: var(--md-code-fg-color);
+  --md-code-hl-name-color: var(--md-code-fg-color);
+  --md-code-hl-function-color: var(--md-code-fg-color);
+  --md-code-hl-variable-color: var(--md-code-fg-color);
+  --md-code-hl-special-color: var(--md-code-fg-color);
+  --md-code-hl-generic-color: var(--md-code-fg-color);
+  --md-code-hl-operator-color: #9b98a3;
+  --md-code-hl-punctuation-color: #9b98a3;
+}
+
+/* ---- Type -------------------------------------------------------------- */
+
 .md-typeset {
-  font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "tnum" 1;
-  letter-spacing: -0.003em;
+  font-feature-settings: "kern" 1, "liga" 1, "onum" 0, "tnum" 1;
+  font-size: 0.78rem;
+  line-height: 1.68;
 }
 
 .md-typeset h1,
 .md-typeset h2,
-.md-typeset h3 {
-  font-weight: 620;
-  letter-spacing: -0.018em;
+.md-typeset h3,
+.md-typeset h4 {
+  color: var(--md-default-fg-color);
+  font-weight: 600;
+  letter-spacing: -0.011em;
 }
 
 .md-typeset h1 {
-  color: var(--md-default-fg-color);
+  font-size: 1.75rem;
+  line-height: 1.18;
+  margin-bottom: 0.7rem;
 }
 
-/* A hairline under section headings, the one piece of ornament. */
+/* A hairline under section headings, the one piece of ornament in the prose. */
 .md-typeset h2 {
-  padding-bottom: 0.3rem;
+  font-size: 1.2rem;
+  margin-top: 2.2em;
+  padding-bottom: 0.32rem;
   border-bottom: 1px solid var(--qs-rule);
 }
 
-/* The blockquote directly under each h1 is the page's one-line summary. */
+.md-typeset h3 {
+  font-size: 0.95rem;
+  margin-top: 1.9em;
+}
+
+/* Structure is mono: navigation, tables, labels, the page summary. Prose is
+   the only thing set in the serif. */
+.md-nav,
+.md-header__title,
+.md-typeset table:not([class]),
+.md-typeset .admonition-title,
+.md-typeset summary,
+.md-footer__title,
+.md-source {
+  font-family: var(--md-code-font);
+}
+
+.md-nav {
+  font-size: 0.66rem;
+  line-height: 1.5;
+}
+
+.md-nav__title {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--lighter);
+}
+
+.md-nav__link--active,
+.md-nav__link--active code {
+  color: var(--qs-signal);
+  font-weight: 600;
+}
+
+.md-header__title {
+  font-size: 0.8rem;
+  letter-spacing: -0.01em;
+}
+
+/* The blockquote directly under each h1 is the page's one-line summary. Set it
+   in mono, so the first thing on every page says which register it is in. */
 .md-typeset h1 + blockquote {
-  border-left: 2px solid var(--md-accent-fg-color);
+  border-left: 2px solid var(--qs-signal);
   background: none;
-  padding-left: 0.9rem;
-  margin-left: 0;
-  font-size: 0.85rem;
+  padding-left: 0.85rem;
+  margin: 0 0 1.9rem;
+  font-family: var(--md-code-font);
+  font-size: 0.68rem;
+  line-height: 1.6;
   color: var(--md-default-fg-color--light);
 }
 
@@ -62,12 +200,24 @@
   margin: 0;
 }
 
-/* Code: the terminal blocks are the receipts, so give them room and stop the
-   long ones from setting the page's horizontal scroll. */
+/* Links keep the underline. On a page this dense, colour alone is not enough
+   to find them, and it is the accessible default anyway. */
+.md-typeset a {
+  text-underline-offset: 0.16em;
+  text-decoration-thickness: 1px;
+}
+
+/* ---- Code -------------------------------------------------------------- */
+
 .md-typeset pre > code {
-  font-size: 0.74rem;
-  line-height: 1.55;
+  font-size: 0.7rem;
+  line-height: 1.6;
   tab-size: 2;
+}
+
+.md-typeset code {
+  font-size: 0.76em;
+  border-radius: 3px;
 }
 
 /* One frame, not two. Material wraps a fenced block as
@@ -85,35 +235,90 @@
   border-radius: 0;
 }
 
-/* A block with no language never gets the wrapper, so it carries its own. */
-.md-typeset > pre {
-  border: 1px solid var(--qs-rule);
-  border-radius: 4px;
+/* The readout panel. `language-text` is an untagged fence, which on this site
+   is always something the tool printed: a console summary, a validate line, a
+   diff, a refusal from the proxy. Dark in both schemes, because the reader is
+   looking at a terminal either way, and because PASS and FAIL are the only
+   colours on the site that carry meaning and they read best on ink. */
+.md-typeset .language-text.highlight {
+  border-color: transparent;
 }
 
-.md-typeset code {
-  font-size: 0.78em;
+.md-typeset .language-text.highlight > pre > code {
+  background-color: var(--qs-ink-soft);
+  color: #d6d3da;
+  padding: 0.85rem 0.9rem;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .language-text.highlight > pre > code {
+  background-color: #08080a;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* The copy button has to survive the inversion. Material colours it with
+   `--md-default-fg-color--lightest`, which is a pale grey chosen against
+   paper and reads as a bright chip on ink. */
+.md-typeset .language-text.highlight .md-code__button,
+.md-typeset .language-text.highlight .md-clipboard {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.md-typeset .language-text.highlight .md-code__button:hover,
+.md-typeset .language-text.highlight .md-code__button:focus,
+.md-typeset .language-text.highlight .md-clipboard:hover,
+.md-typeset .language-text.highlight .md-clipboard:focus {
+  color: var(--qs-signal);
+}
+
+/* Half these samples are wider than the column, and macOS hides overlay
+   scrollbars until you move, so nothing tells you a line continues. A thin
+   permanent track does. */
+.md-typeset .highlight > pre > code::-webkit-scrollbar {
+  height: 6px;
+}
+
+.md-typeset .highlight > pre > code::-webkit-scrollbar-thumb {
+  background: var(--qs-rule);
   border-radius: 3px;
 }
 
-/* PASS and FAIL carry meaning in every sample block on the site. */
-.md-typeset pre code .qs-pass,
-.md-typeset .highlight span.qs-pass {
-  color: var(--qs-pass);
-  font-weight: 600;
+.md-typeset .language-text.highlight > pre > code::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
 }
 
-/* Tables: these are mostly field references and classification lists, so make
-   the header row do the separating and let the rows sit quietly. */
+/* Verdict tokens, coloured the way the CLI colours them. `docs_hooks.py`
+   wraps them at build time; everything else in the panel stays neutral. */
+.md-typeset .qs-verdict {
+  font-weight: 700;
+}
+
+.md-typeset .qs-verdict--pass {
+  color: var(--qs-pass-on-ink);
+}
+
+.md-typeset .qs-verdict--fail {
+  color: var(--qs-fail-on-ink);
+}
+
+.md-typeset .qs-verdict--none {
+  color: var(--qs-dim-on-ink);
+}
+
+/* ---- Tables ------------------------------------------------------------ */
+
+/* Mostly field references and classification lists, so the header row does the
+   separating and the rows sit quietly. */
 .md-typeset table:not([class]) {
   border: 1px solid var(--qs-rule);
   border-radius: 4px;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
+  line-height: 1.5;
 }
 
 .md-typeset table:not([class]) th {
   background: var(--qs-surface);
   font-weight: 600;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
@@ -127,27 +332,22 @@
   overflow-x: auto;
 }
 
-/* The cards on the landing page. */
+/* ---- Chrome ------------------------------------------------------------ */
+
 .md-typeset .grid.cards > ul > li {
   border: 1px solid var(--qs-rule);
   border-radius: 5px;
-  transition: border-color 120ms, transform 120ms;
+  transition: border-color 120ms;
 }
 
 .md-typeset .grid.cards > ul > li:hover {
-  border-color: var(--md-accent-fg-color);
-  transform: translateY(-1px);
+  border-color: var(--qs-signal);
 }
 
-/* Links keep the underline: on a page this dense, colour alone is not enough
-   to find them, and it is the accessible default anyway. */
-.md-typeset a {
-  text-underline-offset: 0.15em;
-  text-decoration-thickness: 1px;
+.md-typeset .grid.cards > ul > li > hr {
+  border-bottom-color: var(--qs-rule);
 }
 
-/* The header is black in both schemes; keep its bottom edge from disappearing
-   into a dark page. */
 .md-header {
   border-bottom: 1px solid var(--qs-rule);
   box-shadow: none;
@@ -156,5 +356,11 @@
 @media screen and (min-width: 76.25em) {
   .md-sidebar--primary {
     border-right: 1px solid var(--qs-rule);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .grid.cards > ul > li {
+    transition: none;
   }
 }
