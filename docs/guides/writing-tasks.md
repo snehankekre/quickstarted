@@ -3,6 +3,17 @@
 > The rules that separate a task which measures your docs from one that
 > measures luck.
 
+## Start from a scaffold
+
+```bash
+quickstarted init https://fastapi.tiangolo.com/tutorial/first-steps/
+```
+
+That writes `tasks/fastapi-quickstart.yaml` with the entrypoint filled in, the
+host allowlist derived from the URL, and a schema line that gives any
+language-server editor completion on every field below. It validates as written,
+so you can edit it one field at a time and check your work as you go.
+
 ## Success checks you can copy
 
 The success script is the only thing standing between a report and a model's
@@ -61,17 +72,42 @@ success:
     PY
 ```
 
-The long scripts in this repo, [streamlit][st] and [fastapi][fa], are long
-because they boot a server and poll it. That is the strictest end of the range
-and it is optional. A weaker check that you trust beats a strict one you cannot
-debug, and you can tighten it later.
+A weaker check that you trust beats a strict one you cannot debug, and you can
+tighten it later.
 
-Develop a check by running it yourself. `--keep-sandbox` leaves the workspace in
-place after a run, so you can `cd` into it and run the script by hand until it
-does what you meant.
+## Keep a long check in a file
 
-[st]: https://github.com/snehankekre/quickstarted/blob/main/tasks/streamlit-quickstart.yaml
-[fa]: https://github.com/snehankekre/quickstarted/blob/main/tasks/fastapi-quickstart.yaml
+Once a check is more than a few lines, put it beside the task and point at it:
+
+```yaml
+success:
+  file: checks/fastapi.sh
+```
+
+Now shellcheck, syntax highlighting and `bash -n` work on it, and you can read
+it without counting YAML indentation. The file is read when the task loads, so
+it never lands in the workspace where the agent could read its own success
+criteria.
+
+## Develop a check without paying for a run
+
+`--keep-sandbox` leaves the workspace in place, and `quickstarted check` runs
+your success script against it again. No model, no key, no cost, and the same
+backend that will judge it for real:
+
+```bash
+quickstarted run tasks/mine.yaml --agent claude --keep-sandbox
+# ... sandbox kept at: /tmp/quickstarted-8ilw9l6v/workspace
+
+quickstarted check tasks/mine.yaml --sandbox /tmp/quickstarted-8ilw9l6v/workspace
+```
+
+That loop takes about a second, so the check can be wrong ten times before it is
+right. `--show` prints the script the harness will actually run, helpers
+included.
+
+Running the script by hand instead judges it in a different environment from the
+one that will judge it for real: another Python, another PATH, and no container.
 
 ## Make a failing check say what it saw
 
@@ -86,45 +122,31 @@ route from a server that never booted. The cause was `set -e` aborting the
 script at the failing command, before the lines meant to report the problem
 could run.
 
-```yaml
-success:
-  script: |
-    set -e
-    .venv/bin/python -m uvicorn app:app --port 8611 > server.log 2>&1 &
-    pid=$!
-    status=0
-    # `if !` so a failure does not trip `set -e` and skip the diagnostics.
-    if ! .venv/bin/python poll.py; then
-      status=1
-      echo "--- server.log (last 20 lines) ---"
-      tail -20 server.log 2>/dev/null || echo "(no server.log; server never started)"
-    fi
-    kill "$pid" 2>/dev/null || true
-    exit $status
-```
+`serve` and `wait_http` exist because of that failure. They keep the last error
+rather than swallowing it, print the server log when they give up, and put the
+reason on the final line, which is the line the console summary shows.
+"Connection refused" and "HTTP 200 with the wrong body" are different bugs in
+your documentation, and a bare exit code cannot tell them apart.
 
-Inside the polling loop, keep the last error rather than swallowing every
-exception with `continue`, and print it once the loop gives up. "Connection
-refused" and "HTTP 200 with the wrong body" are different bugs in your
-documentation, and a bare exit code cannot tell them apart.
-
-For a check with several assertions, one line each is enough. A shell function
-keeps it short, and `|| fail` stops `set -e` from aborting before the message
+For a check with several assertions, one line each is enough. `qs_fail` prints
+the reason and stops, and `||` keeps `set -e` from aborting before the message
 prints:
 
 ```yaml
 success:
   script: |
     set -e
-    fail() { echo "check failed: $1"; exit 1; }
-    test -f pyproject.toml || fail "no pyproject.toml, so uv never created a project"
-    test -f uv.lock || fail "no uv.lock, so the project was never locked"
-    grep -q httpx pyproject.toml || fail "httpx is not a dependency in pyproject.toml"
+    test -f pyproject.toml || qs_fail "no pyproject.toml, so uv never created a project"
+    test -f uv.lock || qs_fail "no uv.lock, so the project was never locked"
+    grep -q httpx pyproject.toml || qs_fail "httpx is not a dependency in pyproject.toml"
 ```
 
 That run reports `check failed: httpx is not a dependency in pyproject.toml`
 instead of `exit code: 1`, which is the difference between a page to go and read
-and a page to go and guess about. Every task in this repo is written this way.
+and a page to go and guess about.
+
+`quickstarted validate` warns when a check has several assertions and no way to
+report which one failed, so this is catchable before a run rather than after.
 
 `quickstarted run` says so when a check stays quiet:
 
@@ -173,25 +195,46 @@ telepathy.
 
 ## Let the harness verify
 
-If the goal is a running server, start it in the success script, ask it a
-question, and stop it. Do not ask the agent to leave a process running, and
-never take its word for the result.
+If the goal is a running server, the harness starts it, asks it a question, and
+stops it. Do not ask the agent to leave a process running, and never take its
+word for the result:
+
+```yaml
+success:
+  serve: .venv/bin/fastapi run app.py --host 127.0.0.1 --port $QS_PORT
+  wait_http:
+    path: /items/42
+    json:
+      item_id: 42
+  script: test -f app.py
+```
+
+`$QS_PORT` is a free port picked for this task. The polling, the log capture,
+the last error and the kill are the harness's job, which is the point: the
+hand-written version of this block was twenty lines, four tasks in this repo
+each had their own copy, and the copies were where the `if !` idiom got dropped.
+
+When the shape does not fit, the same helpers are available directly:
 
 ```yaml
 success:
   script: |
     set -e
-    test -f app.py
-    .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8611 > server.log 2>&1 &
-    pid=$!
-    ok=0
-    for _ in $(seq 1 40); do
-      sleep 1
-      if curl -sf http://127.0.0.1:8611/items/42 | grep -q '"item_id"'; then ok=1; break; fi
-    done
-    kill "$pid" 2>/dev/null || true
-    test "$ok" = "1"
+    if [ -x .venv/bin/fastapi ]; then
+      qs_serve .venv/bin/fastapi run app.py --port "$QS_PORT"
+    elif .venv/bin/python -c "import uvicorn" 2>/dev/null; then
+      qs_serve .venv/bin/python -m uvicorn app:app --port "$QS_PORT"
+    else
+      qs_fail "neither the fastapi CLI nor uvicorn is installed"
+    fi
+    qs_wait_http /items/42 --json item_id=42
 ```
+
+That is [the real FastAPI check][fa], and it branches because the tutorial
+documents two ways to serve. Requiring one of them would measure my expectation
+rather than the documentation, and it already cost three runs once.
+
+[fa]: https://github.com/snehankekre/quickstarted/blob/main/tasks/checks/fastapi.sh
 
 ## Separate documentation hosts from registries
 
@@ -259,5 +302,33 @@ A task that routinely exhausts its budget produces `budget_exhausted`, which
 is excluded from pass rates. That is the correct outcome, and it also means a
 too-small budget quietly removes the task from your results. Check the
 discarded counts in the summary.
+
+## Say the shared parts once
+
+A suite of tasks usually wants the same setup and the same budgets, and a repo
+usually wants the same flags on every invocation. `quickstarted.yaml` at the
+root of your project says so once:
+
+```yaml
+run:
+  backend: docker
+  cache_dir: .cache
+tasks:
+  setup:
+    - python3 -m venv .venv
+  budgets:
+    max_seconds: 420
+```
+
+The more specific statement wins in both directions. A task file beats `tasks:`,
+and a flag you typed beats `run:`. Lists replace rather than combine, because a
+config `setup` and a task `setup` running one after the other would execute both
+in an order nobody chose.
+
+`run:` accepts `backend`, `image`, `cache_dir`, `prices`, `out`, `junit` and
+`workers`. It deliberately refuses `agent`, `model`, `repeat` and `affordances`:
+a file that quietly changed which model served a task, or how many attempts a
+rate was computed over, would make two runs incomparable for a reason invisible
+in the command you typed.
 
 Full field list: [task schema](../reference/task-schema.md).

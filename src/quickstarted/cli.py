@@ -14,18 +14,31 @@ exhaustion, harness bugs) do not silently turn into failures; use
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .agents.registry import AGENTS, build_agent
+from .config import ConfigError, load_config
 from .docs import AFFORDANCE_POLICIES, DocsClient
-from .exec import available_backends, resolve_backend
+from .exec import (
+    ExecutorError,
+    available_backends,
+    make_executor,
+    needs_host_proxy,
+    resolve_backend,
+)
+from .net.proxy import EgressProxy
 from .pricing import PriceBook
 from .report import console_summary, markdown_report, markdown_suite_report, suite_summary
 from .results import write_json, write_junit
 from .run import EVIDENTIAL
+from .schema import SCHEMA_LINE, TASK_SCHEMA
 from .suite import run_suite
 from .task import TaskError, load_task
+from .trace import Trace
 
 _LEGACY_DIR = "journeys"
 
@@ -55,17 +68,67 @@ def _resolve_paths(paths) -> list[str]:
     return resolved
 
 
+def _check_entrypoint(task, docs) -> None:
+    """Ask whether the documentation is actually reachable, before a paid run.
+
+    A typo in an entrypoint costs a whole sweep otherwise: the agent is pointed
+    at a 404, reads nothing, fails, and the run is classified as a documentation
+    gap because from the harness's side that is exactly what it looks like.
+    """
+    if not docs.robots_allows(task.docs_entrypoint):
+        print(
+            f"warning  {task.docs_entrypoint} is disallowed by robots.txt, so "
+            f"the agent will be refused it. Use --ignore-robots only if the "
+            f"documentation is yours."
+        )
+        return
+    try:
+        result = docs.get(task.docs_entrypoint)
+    except Exception as exc:
+        print(f"warning  {task.docs_entrypoint} could not be fetched: {exc}")
+        return
+    if result.blocked_reason:
+        print(f"warning  {task.docs_entrypoint} was blocked: {result.blocked_reason}")
+    elif not result.text.strip():
+        print(f"warning  {task.docs_entrypoint} fetched but had no readable text")
+    elif result.followed_from:
+        print(f"note     {task.docs_entrypoint} redirects to {result.url}")
+
+
 def cmd_validate(args) -> int:
     failures = 0
+    docs = DocsClient(offline=False) if args.check_urls else None
     for path in _resolve_paths(args.tasks):
         try:
-            task = load_task(path)
+            task = load_task(path, args.task_defaults)
         except TaskError as exc:
             print(f"INVALID  {exc}")
             failures += 1
         else:
             modes = "replay+agent" if task.replay else "agent-only"
             print(f"ok       {path} ({task.name}, {modes})")
+            for directory in task.unprepared_env_paths:
+                print(
+                    f"warning  the success check requires {directory}/bin/, which "
+                    f"neither setup nor the replay commands create. Does the "
+                    f"documentation promise that path? An agent that names its "
+                    f"environment differently fails a check it should have "
+                    f"passed, and the pass rate is wrong rather than low."
+                )
+            if task.can_fail_silently:
+                print(
+                    f"warning  {task.name}'s success check can exit non-zero "
+                    f"without printing anything, so a failure would name a docs "
+                    f"page and no reason. Add `|| qs_fail \"what you saw\"`."
+                )
+            if not task.replay:
+                print(
+                    f"note     {task.name} has no 'replay' commands, so "
+                    f"`--agent replay` reports it as inconclusive rather than "
+                    f"running it."
+                )
+            if docs:
+                _check_entrypoint(task, docs)
             for host in task.network_conflicts:
                 print(
                     f"warning  {host} is declared a docs host, so the shell "
@@ -108,12 +171,174 @@ def cmd_doctor(args) -> int:
     return 0
 
 
+_TEMPLATE = """{schema_line}
+name: {name}
+
+# The only instruction the agent gets. Describe the outcome in the words a user
+# would use, and do not name the API that produces it: an agent handed the
+# answer tests nothing.
+goal: >
+  TODO: state what a reader should end up with after following the quickstart.
+
+docs:
+  entrypoint: {entrypoint}
+  # Readable only through read_docs, never from the shell, which is what keeps
+  # the record of pages read complete. Do not list package registries here.
+  allow:
+{allow}
+
+# Commands run before the agent starts. The agent is told these ran, so it will
+# not rebuild what they created.
+setup:
+  - python3 -m venv .venv
+
+# Exit code 0 is a pass and nothing else is. Assert what your quickstart already
+# promises the reader, and make a failure say what it saw.
+success:
+  script: |
+    set -e
+    test -f app.py || qs_fail "no app.py, so the quickstart produced nothing"
+
+# The literal commands your documentation tells a reader to type. Free to run,
+# needs no API key, and if these fail no reader stands a chance.
+replay:
+  - "true"  # TODO: replace with the documented commands
+"""
+
+#: Subdomains that name the site rather than the project.
+_GENERIC_HOSTS = ("docs", "www", "api", "developer", "dev", "learn", "guide", "help")
+
+
+def _name_from_host(host: str) -> str:
+    """`fastapi.tiangolo.com` is fastapi; `docs.streamlit.io` is streamlit."""
+    labels = host.split(".")
+    first = labels[0]
+    if first not in _GENERIC_HOSTS:
+        return first
+    return labels[-2] if len(labels) > 1 else first
+
+
+def cmd_init(args) -> int:
+    """Scaffold a task from a documentation URL.
+
+    The alternative is copy-paste from a documentation page, which is how a
+    first task acquires a field name that no longer exists.
+    """
+    parsed = urlparse(args.entrypoint)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        print(f"entrypoint must be an http(s) URL, got {args.entrypoint!r}", file=sys.stderr)
+        return 3
+    host = parsed.hostname.lower()
+    name = args.name or re.sub(r"[^a-z0-9]+", "-", _name_from_host(host)) + "-quickstart"
+    path = Path(args.out) if args.out else Path("tasks") / f"{name}.yaml"
+    if path.exists() and not args.force:
+        print(f"{path} already exists; pass --force to overwrite", file=sys.stderr)
+        return 3
+
+    # The bare registrable domain too, so a docs site that links to its own
+    # marketing pages does not hand the agent a BLOCKED on the second hop.
+    parts = host.split(".")
+    hosts = [host] if len(parts) < 3 else [host, ".".join(parts[-2:])]
+    body = _TEMPLATE.format(
+        schema_line=SCHEMA_LINE,
+        name=name,
+        entrypoint=args.entrypoint,
+        allow="\n".join(f"    - {h}" for h in hosts),
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    print(f"wrote {path}")
+    print("Next: write the goal and the success check, then")
+    print(f"  quickstarted validate {path} --check-urls")
+    return 0
+
+
+def cmd_schema(args) -> int:
+    print(json.dumps(TASK_SCHEMA, indent=2))
+    return 0
+
+
+def cmd_check(args) -> int:
+    """Re-run only the success script, against a workspace a run kept.
+
+    Developing a check otherwise costs an agent run per iteration, and the
+    obvious workaround (`cd` into the kept sandbox and run the script by hand)
+    judges it in a different environment from the one that will judge it for
+    real: another Python, another PATH, no container.
+    """
+    try:
+        task = load_task(args.task, args.task_defaults)
+    except TaskError as exc:
+        print(f"INVALID  {exc}", file=sys.stderr)
+        return 3
+    if args.show:
+        print(task.check_script)
+        return 0
+
+    sandbox = Path(args.sandbox)
+    if not sandbox.is_dir():
+        print(
+            f"no such workspace: {sandbox}\n"
+            f"Run with --keep-sandbox first; the path is printed after the run.",
+            file=sys.stderr,
+        )
+        return 3
+
+    backend = resolve_backend(args.backend)
+    proxy = None
+    trace = Trace()
+    if needs_host_proxy(backend):
+        proxy = EgressProxy(
+            network_allow=task.network_allow,
+            docs_hosts=task.docs_allow,
+            explicit_allow=task.network_explicit,
+            trace=trace,
+        )
+        proxy.start()
+    try:
+        executor = make_executor(
+            backend,
+            proxy_url=proxy.url if proxy else None,
+            network_allow=task.network_allow,
+            docs_hosts=task.docs_allow,
+            image=task.image or args.image or None,
+            trace=trace,
+            workspace=sandbox,
+        )
+    except ExecutorError as exc:
+        if proxy:
+            proxy.stop()
+        print(f"could not start the {backend} backend: {exc}", file=sys.stderr)
+        return 3
+    try:
+        result = executor.run(
+            task.check_script,
+            timeout=task.budgets.max_command_seconds,
+            max_output_chars=task.budgets.max_output_chars,
+        )
+    finally:
+        executor.cleanup()
+        if proxy:
+            proxy.stop()
+
+    if result.output.strip():
+        print(result.output.rstrip())
+    verdict = "PASS" if result.exit_code == 0 else "FAIL"
+    print(f"[{verdict}] {task.name} check exited {result.exit_code} ({backend})")
+    if result.exit_code != 0 and not result.output.strip():
+        print(
+            "  note: the check printed nothing, so this failure cannot be "
+            "diagnosed. Have it say what it saw."
+        )
+    return 0 if result.exit_code == 0 else 1
+
+
 def cmd_run(args) -> int:
     tasks = []
     invalid = False
     for path in _resolve_paths(args.tasks):
         try:
-            tasks.append(load_task(path))
+            tasks.append(load_task(path, args.task_defaults))
         except TaskError as exc:
             print(f"INVALID  {exc}")
             invalid = True
@@ -200,14 +425,55 @@ def main(argv=None) -> int:
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    # Kept so `quickstarted.yaml` can ask a subcommand for its own defaults
+    # without reaching into argparse internals.
+    subparsers = {}
 
     p_validate = sub.add_parser("validate", help="validate task files")
     p_validate.add_argument("tasks", nargs="+")
+    p_validate.add_argument(
+        "--check-urls", action="store_true",
+        help="also fetch each entrypoint, to catch a dead link before a paid run",
+    )
     p_validate.set_defaults(func=cmd_validate)
+    subparsers["validate"] = p_validate
 
     p_doctor = sub.add_parser("doctor", help="report what this machine can enforce")
     p_doctor.add_argument("--prices", default="", help="path to a price book JSON file")
     p_doctor.set_defaults(func=cmd_doctor)
+    subparsers["doctor"] = p_doctor
+
+    p_init = sub.add_parser("init", help="scaffold a task file from a docs URL")
+    p_init.add_argument("entrypoint", help="the documentation page to start from")
+    p_init.add_argument("--name", default="", help="task name (default: from the host)")
+    p_init.add_argument("--out", default="", help="path to write (default: tasks/<name>.yaml)")
+    p_init.add_argument("--force", action="store_true", help="overwrite an existing file")
+    p_init.set_defaults(func=cmd_init)
+    subparsers["init"] = p_init
+
+    p_schema = sub.add_parser(
+        "schema", help="print the task file JSON Schema, for editors and CI"
+    )
+    p_schema.set_defaults(func=cmd_schema)
+    subparsers["schema"] = p_schema
+
+    p_check = sub.add_parser(
+        "check",
+        help="re-run only the success script against a kept sandbox (no model, no cost)",
+    )
+    p_check.add_argument("task")
+    p_check.add_argument(
+        "--sandbox", default="",
+        help="workspace from an earlier --keep-sandbox run",
+    )
+    p_check.add_argument(
+        "--show", action="store_true",
+        help="print the script that would run, helpers included, and stop",
+    )
+    p_check.add_argument("--backend", default="auto")
+    p_check.add_argument("--image", default="")
+    p_check.set_defaults(func=cmd_check)
+    subparsers["check"] = p_check
 
     p_run = sub.add_parser("run", help="run tasks")
     p_run.add_argument("tasks", nargs="+")
@@ -274,9 +540,32 @@ def main(argv=None) -> int:
         help="fetch documentation even where robots.txt disallows it",
     )
     p_run.set_defaults(func=cmd_run)
+    subparsers["run"] = p_run
 
     args = parser.parse_args(argv)
+    try:
+        config = load_config()
+    except ConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    if config:
+        _apply_config(subparsers.get(args.command), args, config)
+    args.task_defaults = config.tasks
     return args.func(args)
+
+
+def _apply_config(subparser, args, config) -> None:
+    """Let `quickstarted.yaml` supply flags the user did not type.
+
+    A flag the user typed always wins. The comparison is against the parser's
+    own default, so passing a value that happens to equal the default is
+    indistinguishable from not passing it, which changes nothing.
+    """
+    if subparser is None:
+        return
+    for key, value in config.run.items():
+        if hasattr(args, key) and getattr(args, key) == subparser.get_default(key):
+            setattr(args, key, value)
 
 
 if __name__ == "__main__":

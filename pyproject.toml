@@ -110,6 +110,9 @@ ignore = [
 "tests/*" = ["E501"]
 # The sidecar entrypoint imports after a deliberate sys.path edit.
 "src/quickstarted/net/proxy_main.py" = ["E402"]
+# The check helpers are a shell script in a string literal; wrapping a pipeline
+# to satisfy a Python line limit would make the shell harder to read.
+"src/quickstarted/checks.py" = ["E501"]
 
 [tool.mypy]
 # The package supports 3.9 at runtime; mypy itself no longer targets it,

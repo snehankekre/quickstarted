@@ -3,6 +3,64 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Authoring a task was the part that needed a person to already know the tool.
+This release is about the hour between `pip install` and a task you trust, and
+most of it exists because a badly written check does not produce a bad
+experience, it produces a wrong number.
+
+### Added
+
+- **`success.file`**, a path to a shell file beside the task, so a check can be
+  shellchecked, syntax highlighted and read without counting YAML indentation.
+  It is read at load time and never written into the workspace: the workspace is
+  the agent's own directory, and a success script it could read is an answer key.
+  A test asserts the agent cannot find it.
+- **`success.serve` and `success.wait_http`**, a declarative form for the
+  commonest hard check. The harness backgrounds the process, polls, keeps the
+  last error, prints the server log when it gives up, and names the reason on
+  the last line, which is the line the console summary shows. Four tasks in this
+  repo had their own copy of those twenty lines, and the copies were where the
+  `if !` idiom got dropped. The FastAPI check went from 53 lines to 20, and
+  Streamlit's from 37 to 9.
+- **`qs_serve`, `qs_wait_http` and `qs_fail`** are defined for every success
+  script. The declarative form generates calls to them, so a check that outgrows
+  the schema drops to shell without losing anything, which is what
+  `tasks/checks/fastapi.sh` does to keep supporting both documented ways of
+  serving.
+- **`quickstarted check TASK --sandbox PATH`** re-runs only the success script
+  against a workspace a `--keep-sandbox` run left behind. No model, no key, and
+  the same backend that judged the run: about a second per iteration instead of
+  a paid run per iteration. `--show` prints the script the harness will run.
+- **`quickstarted init URL`** scaffolds a task from a documentation URL, with
+  the allowlist derived from the host and a schema line for editor completion.
+  The result validates as written.
+- **`quickstarted schema`** prints a JSON Schema for task files, published at
+  `snehankekre.com/quickstarted/task-schema.json`. A test fails if the published
+  copy drifts from the code.
+- **`quickstarted.yaml`** for repo defaults, `run:` for flags and `tasks:` for
+  task fields. A flag you typed beats `run:`; a task file beats `tasks:`. It
+  refuses `agent`, `model`, `repeat` and `affordances`, because a file that
+  quietly changed which model served a task would make two runs incomparable
+  for a reason invisible in the command you typed.
+- **`validate` warnings for the mistakes that corrupt a pass rate**: a check
+  requiring an environment directory neither `setup` nor `replay` creates, which
+  is how a working run gets recorded as a documentation failure; a check that
+  can exit non-zero while printing nothing; and a task with no `replay` block,
+  which replay-mode CI reports as inconclusive. `--check-urls` also fetches each
+  entrypoint, so a dead link surfaces before a sweep pays for it.
+
+### Fixed
+
+- **The seatbelt backend could not run any task that starts a server.** The
+  profile's `(allow network-bind (local ip "localhost:*"))` never matched, so
+  the bind was refused outright, and polling was denied separately because only
+  the proxy port was reachable. Binding now uses `"*:*"`, with inbound and
+  outbound allowed on loopback only. Remote egress stays denied, verified
+  directly: a TCP dial to a literal IP and an HTTP request to a remote host are
+  both refused, so documentation hosts remain unreachable from the shell.
+
 ## [0.3.1] - 2026-07-27
 
 A failure that cannot be diagnosed is barely a failure. This release is about

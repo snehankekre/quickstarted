@@ -12,45 +12,18 @@ docs:
 setup:
   - python3 -m venv .venv
 success:
+  # The harness, not the agent, decides whether the app really runs: serve it
+  # headless and ask Streamlit's own health endpoint.
+  serve: >
+    .venv/bin/streamlit run app.py --server.headless true
+    --server.port $QS_PORT --browser.gatherUsageStats false
+  wait_http:
+    path: /_stcore/health
+    contains: ok
   script: |
     set -e
-    test -f app.py
+    test -f app.py || qs_fail "no app.py, so the quickstart never produced an app"
     .venv/bin/streamlit --version
-    # The harness, not the agent, decides whether the app really runs: serve it
-    # headless on a fixed port and ask Streamlit's own health endpoint.
-    .venv/bin/streamlit run app.py \
-      --server.headless true --server.port 8599 --browser.gatherUsageStats false \
-      > server.log 2>&1 &
-    pid=$!
-    # `if !` rather than a bare call, so a failure does not trip `set -e` before
-    # the diagnostics below get a chance to run. The exit code is the verdict,
-    # but the output is the bug report.
-    status=0
-    # The image ships without curl, so ask over Python's stdlib.
-    if ! .venv/bin/python - <<'PY'
-    import sys, time, urllib.request
-
-    last = "never attempted"
-    for _ in range(40):
-        time.sleep(1)
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:8599/_stcore/health", timeout=5) as r:
-                body = r.read()
-            if b"ok" in body:
-                sys.exit(0)
-            last = f"health endpoint answered {body[:200]!r}"
-        except Exception as exc:
-            last = f"{type(exc).__name__}: {exc}"
-    print(f"/_stcore/health never reported ok. Last attempt: {last}")
-    sys.exit(1)
-    PY
-    then
-      status=1
-      echo "--- server.log (last 20 lines) ---"
-      tail -20 server.log 2>/dev/null || echo "(no server.log; the server never started)"
-    fi
-    kill "$pid" 2>/dev/null || true
-    exit $status
 budgets:
   max_turns: 20
   max_seconds: 420

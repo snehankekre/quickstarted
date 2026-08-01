@@ -65,18 +65,36 @@ class ProcessExecutor:
     name = "process"
     enforced = False
 
-    def __init__(self, keep: bool = False, proxy_url: str | None = None):
+    def __init__(
+        self,
+        keep: bool = False,
+        proxy_url: str | None = None,
+        workspace: Path | None = None,
+    ):
         # The workspace and the agent's HOME are siblings. Scaffolding tools
         # (`npm create`, `django-admin startproject .`, `cargo new`) refuse to
         # run in a directory that is not empty, and a HOME inside the workspace
         # fills it with dotfiles before the agent has typed anything. That
         # failure has nothing to do with the docs.
-        self.base = Path(tempfile.mkdtemp(prefix="quickstarted-"))
-        self.root = self.base / "workspace"
-        self.root.mkdir()
-        self.support = self.base / "support"
-        (self.support / "home").mkdir(parents=True)
-        (self.support / "tmp").mkdir()
+        if workspace is not None:
+            # Adopting a workspace a previous run kept, so a success script can
+            # be re-run against it. The same absolute path matters: a virtualenv
+            # records it in every console script, so a copy elsewhere would fail
+            # for a reason the documentation had nothing to do with.
+            self.root = workspace.resolve()
+            self.base = self.root.parent
+            self.support = self.base / "support"
+            (self.support / "home").mkdir(parents=True, exist_ok=True)
+            (self.support / "tmp").mkdir(exist_ok=True)
+            # Never delete a directory somebody handed us.
+            keep = True
+        else:
+            self.base = Path(tempfile.mkdtemp(prefix="quickstarted-"))
+            self.root = self.base / "workspace"
+            self.root.mkdir()
+            self.support = self.base / "support"
+            (self.support / "home").mkdir(parents=True)
+            (self.support / "tmp").mkdir()
         self.keep = keep
         self.proxy_url = proxy_url
 

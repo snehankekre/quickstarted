@@ -46,6 +46,48 @@ def test_replay_pass(tmp_path):
     assert "PASS" in console_summary(result)
 
 
+def test_success_script_is_not_readable_from_the_workspace(tmp_path):
+    """The check is an answer key, and the workspace is the agent's own directory.
+
+    `success.file` reads the check at load time and carries it as text, so it
+    must still never touch the disk the agent can see. An agent that could grep
+    its own success criteria would be graded on a test it had already read.
+    """
+    marker = "GRADING_CRITERION_7f3a"
+    checks = tmp_path / "checks"
+    checks.mkdir()
+    (checks / "c.sh").write_text(f"test -f done.txt  # {marker}\n")
+    text = textwrap.dedent(
+        """
+        name: t
+        goal: create done.txt
+        docs:
+          entrypoint: https://example.com/docs/
+        success:
+          file: checks/c.sh
+        replay:
+          - "echo x > done.txt"
+        """
+    )
+    path = tmp_path / "t.yaml"
+    path.write_text(text)
+    task = load_task(path)
+    assert marker in task.success_script
+
+    seen = []
+
+    class SnoopingAgent:
+        name = "snoop"
+
+        def run(self, task, toolbelt, deadline):
+            seen.append(toolbelt.bash(f"grep -rl {marker} . 2>/dev/null; true"))
+            return ReplayAgent().run(task, toolbelt, deadline)
+
+    result = run_task(task, SnoopingAgent(), http_get=fake_http_get, backend="local")
+    assert result.passed
+    assert marker not in seen[0], "the agent could read its own success criteria"
+
+
 def test_replay_fail_scores_fail_and_attributes(tmp_path):
     task = make_task(tmp_path, replay=("false",))
     result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")

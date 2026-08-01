@@ -227,7 +227,7 @@ def run_task(
         outcome = agent.run(task, toolbelt, deadline)
 
         check = executor.run(
-            task.success_script,
+            task.check_script,
             timeout=task.budgets.max_command_seconds,
             max_output_chars=task.budgets.max_output_chars,
         )

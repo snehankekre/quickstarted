@@ -108,3 +108,103 @@ def test_node_script_without_image_warns(tmp_path, capsys):
     path.write_text(TASK.replace("script: test -f done.txt", "script: npm run build"))
     assert main(["validate", str(path)]) == 0
     assert "no 'image' is set" in capsys.readouterr().out
+
+
+def test_check_reruns_only_the_success_script(tmp_path, capsys):
+    """The dev loop: iterate on a check against a kept workspace, no model."""
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    workspace = tmp_path / "kept" / "workspace"
+    workspace.mkdir(parents=True)
+
+    assert main(["check", str(path), "--sandbox", str(workspace), "--backend", "local"]) == 1
+    assert "FAIL" in capsys.readouterr().out
+
+    (workspace / "done.txt").write_text("x")
+    assert main(["check", str(path), "--sandbox", str(workspace), "--backend", "local"]) == 0
+    assert "PASS" in capsys.readouterr().out
+    # The workspace is the user's; running a check must never consume it.
+    assert (workspace / "done.txt").exists()
+
+
+def test_check_show_prints_the_script_with_helpers(tmp_path, capsys):
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    assert main(["check", str(path), "--show"]) == 0
+    out = capsys.readouterr().out
+    assert "qs_wait_http()" in out
+    assert "test -f done.txt" in out
+
+
+def test_check_missing_sandbox_says_how_to_get_one(tmp_path, capsys):
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    assert main(["check", str(path), "--sandbox", str(tmp_path / "nope")]) == 3
+    assert "--keep-sandbox" in capsys.readouterr().err
+
+
+def test_init_scaffolds_a_task_that_validates(tmp_path, capsys, monkeypatch):
+    """The scaffold must parse on first sight; INVALID reads as a broken tool."""
+    monkeypatch.chdir(tmp_path)
+    assert main(["init", "https://fastapi.tiangolo.com/tutorial/first-steps/"]) == 0
+    written = tmp_path / "tasks" / "fastapi-quickstart.yaml"
+    assert written.exists()
+    body = written.read_text()
+    assert "yaml-language-server: $schema=" in body
+    assert "fastapi.tiangolo.com" in body
+    capsys.readouterr()
+    assert main(["validate", str(written)]) == 0
+
+
+def test_init_names_the_project_not_the_registrar(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert main(["init", "https://docs.streamlit.io/get-started"]) == 0
+    assert (tmp_path / "tasks" / "streamlit-quickstart.yaml").exists()
+    capsys.readouterr()
+
+
+def test_init_refuses_to_clobber(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert main(["init", "https://vite.dev/guide/"]) == 0
+    capsys.readouterr()
+    assert main(["init", "https://vite.dev/guide/"]) == 3
+    assert "--force" in capsys.readouterr().err
+
+
+def test_schema_command_emits_valid_json(capsys):
+    import json
+
+    assert main(["schema"]) == 0
+    parsed = json.loads(capsys.readouterr().out)
+    assert parsed["title"] == "quickstarted task"
+
+
+def test_config_supplies_flags_the_user_did_not_type(tmp_path, capsys, monkeypatch):
+    import quickstarted.transport as transport
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "quickstarted.yaml").write_text("run:\n  backend: local\n")
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    # `run` defaults to --backend auto, which on a machine with Docker would not
+    # be local; the config is what makes this local. The safety gate still
+    # applies to a backend a config chose, which is why --allow-unenforced is
+    # still required here.
+    assert main(["run", str(path), "--agent", "replay", "--allow-unenforced"]) == 0
+    assert "backend: local" in capsys.readouterr().out
+
+
+def test_a_malformed_config_is_reported_not_ignored(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "quickstarted.yaml").write_text("run:\n  agent: claude\n")
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    assert main(["validate", str(path)]) == 3
+    assert "agent" in capsys.readouterr().err
