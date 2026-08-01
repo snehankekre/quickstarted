@@ -14,9 +14,11 @@ setup:
 success:
   script: |
     set -e
-    test -f script.py
-    test -f shop.db
-    grep -Eq '^35\.75$|^35\.8$|^35\.750*$' total.txt
+    test -f script.py || qs_fail "no script.py, so the quickstart produced no program"
+    test -f shop.db || qs_fail "no shop.db, so the database was never created"
+    test -f total.txt || qs_fail "no total.txt, so the total was never written out"
+    grep -Eq '^35\.75$|^35\.8$|^35\.750*$' total.txt \
+      || qs_fail "total.txt says $(head -c 80 total.txt), wanted 35.75"
     # The database must really hold the rows, not just the answer file.
     .venv/bin/python - <<'PY'
     import duckdb

@@ -18,9 +18,11 @@ success:
     # The tutorial's own layout puts manage.py one level down, but
     # `startproject mysite .` is also documented. Find it rather than assuming.
     manage=$(find . -name manage.py -not -path "./.venv/*" | head -1)
-    test -n "$manage"
+    test -n "$manage" \
+      || qs_fail "no manage.py anywhere, so startproject never ran"
     root=$(dirname "$manage")
-    test -d "$root/polls"
+    test -d "$root/polls" \
+      || qs_fail "no polls app beside $manage, so startapp never ran"
     cd "$root"
     "$WS/.venv/bin/python" manage.py check
     # Ask the view, through Django's own test client, so no server is needed.

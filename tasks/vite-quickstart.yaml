@@ -15,11 +15,14 @@ success:
     # `npm create vite@latest my-app` and `npm create vite@latest .` are both
     # documented, so find the build output instead of assuming where it landed.
     built=$(find . -path ./node_modules -prune -o -name index.html -path "*/dist/*" -print | head -1)
-    test -n "$built"
+    test -n "$built" \
+      || qs_fail "no dist/index.html anywhere, so the production build never ran"
     # A Vite build rewrites the entry to a hashed asset. An unbuilt index.html
     # copied into dist/ would not.
-    grep -qE '/assets/.*\.js' "$built"
-    test -n "$(find . -path ./node_modules -prune -o -path "*/dist/assets/*.js" -print | head -1)"
+    grep -qE '/assets/.*\.js' "$built" \
+      || qs_fail "$built has no hashed /assets/*.js entry, so it was copied rather than built"
+    test -n "$(find . -path ./node_modules -prune -o -path "*/dist/assets/*.js" -print | head -1)" \
+      || qs_fail "$built points at /assets/ but no built JS asset exists there"
 budgets:
   max_turns: 25
   max_seconds: 600
