@@ -26,7 +26,10 @@ class TaskError(ValueError):
 @dataclass(frozen=True)
 class Budgets:
     max_turns: int = 20
-    max_seconds: int = 900
+    #: Every task in this repo sets 420 or 480. The old default of 900 meant a
+    #: task that omitted budgets quietly bought fifteen minutes of agent time
+    #: and a surprising bill.
+    max_seconds: int = 480
     max_command_seconds: int = 300
     max_output_chars: int = 20_000
     #: Hard ceiling on billable tokens for one run, cache traffic included.

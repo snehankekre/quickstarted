@@ -51,6 +51,12 @@ from .schema import SCHEMA_LINE, TASK_SCHEMA
 from .suite import run_suite
 from .task import TaskError, load_task
 from .trace import Trace
+from .transcript import (
+    TranscriptError,
+    load_trace,
+    render_html,
+    render_text,
+)
 
 _LEGACY_DIR = "journeys"
 
@@ -527,6 +533,47 @@ def _write_github_summary(suite, prices) -> bool:
     return True
 
 
+def cmd_show(args) -> int:
+    """Render a trace as something a person reads."""
+    try:
+        events = load_trace(args.trace)
+    except TranscriptError as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    print(render_text(events, verbose=args.verbose))
+    return 0
+
+
+def cmd_report(args) -> int:
+    """Turn a results directory into one self-contained page.
+
+    The artifact somebody forwards to their team, which is how this spreads
+    further than the person who ran it.
+    """
+    root = Path(args.results)
+    document_path = root / "results.json" if root.is_dir() else root
+    try:
+        document = load_results(document_path)
+    except DiffError as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    transcripts = {}
+    if root.is_dir():
+        for trace in sorted(root.glob("*/trace.jsonl")) + sorted(
+            root.glob("*/*/trace.jsonl")
+        ):
+            try:
+                transcripts[str(trace.parent.relative_to(root))] = render_text(
+                    load_trace(trace)
+                )
+            except TranscriptError:
+                continue
+    out = Path(args.out) if args.out else root.with_suffix(".html")
+    out.write_text(render_html(document, transcripts), encoding="utf-8")
+    print(f"wrote {out}")
+    return 0
+
+
 def cmd_diff(args) -> int:
     """Did the documentation change move the pass rate, or is that noise?"""
     try:
@@ -609,7 +656,10 @@ def cmd_run(args) -> int:
             print(f"  sandbox kept at: {result.sandbox_path}")
         if out_root:
             out_dir = out_root / result.task.name
-            if result.attempt > 1:
+            if args.repeat > 1:
+                # Every attempt at the same depth, including the first. It used
+                # to sit one level up from the rest, so anything walking the
+                # tree needed a special case for it.
                 out_dir = out_dir / f"attempt-{result.attempt}"
             out_dir.mkdir(parents=True, exist_ok=True)
             result.trace.write_jsonl(out_dir / "trace.jsonl")
@@ -768,6 +818,23 @@ def main(argv=None) -> int:
     p_diff.set_defaults(func=cmd_diff)
     subparsers["diff"] = p_diff
 
+    p_show = sub.add_parser("show", help="render a trace.jsonl as a readable transcript")
+    p_show.add_argument("trace")
+    p_show.add_argument(
+        "--verbose", action="store_true",
+        help="include the output of commands that succeeded",
+    )
+    p_show.set_defaults(func=cmd_show)
+    subparsers["show"] = p_show
+
+    p_report = sub.add_parser(
+        "report", help="render a results directory as one self-contained HTML page"
+    )
+    p_report.add_argument("results", help="a results/ directory or a results.json")
+    p_report.add_argument("--out", default="", help="where to write the page")
+    p_report.set_defaults(func=cmd_report)
+    subparsers["report"] = p_report
+
     p_check = sub.add_parser(
         "check",
         help="re-run only the success script against a kept sandbox (no model, no cost)",
@@ -796,7 +863,14 @@ def main(argv=None) -> int:
         "--agent", default="replay",
         help=f"one of: {', '.join(sorted(AGENTS))} (default: replay)",
     )
-    p_run.add_argument("--model", default="", help="model override for LLM agents")
+    p_run.add_argument(
+        "--model", default="",
+        help=(
+            "model to run. Required for openai and gemini, which have no default "
+            "on purpose: a benchmark that silently picks one produces numbers "
+            "nobody can reproduce. Ignored by --agent replay."
+        ),
+    )
     p_run.add_argument("--out", default="", help="directory for traces and reports")
     p_run.add_argument("--junit", default="", help="write JUnit XML to this path")
     p_run.add_argument("--prices", default="", help="path to a price book JSON file")
@@ -850,8 +924,10 @@ def main(argv=None) -> int:
         "--affordances", default="all", choices=list(AFFORDANCE_POLICIES),
         help=(
             "which machine-facing files the agent may read. 'none' withholds "
-            "llms.txt and .md variants: run both and compare pass rates to "
-            "measure whether the affordance helps"
+            "llms.txt and .md variants. The ablation is two runs and a diff: "
+            "`run --repeat 10 --out with/` then `run --repeat 10 "
+            "--affordances none --out without/` then `diff with/results.json "
+            "without/results.json`"
         ),
     )
     p_run.add_argument(

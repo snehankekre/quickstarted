@@ -86,6 +86,38 @@ subtracted, for the same reason pass rates are never aggregated across models.
 `--fail-on-regression` exits 1 when a pass rate dropped by more than noise,
 which is the CI form of the question.
 
+## quickstarted show
+
+```bash
+quickstarted show results/httpx-quickstart/trace.jsonl [--verbose]
+```
+
+The trace as a person reads it:
+
+```
+[   0.0s] will-fail on seatbelt, agent replay, attempt 1
+[   0.3s] read https://example.com/
+[   0.3s] $ true
+[   0.3s]   exit 0
+[   0.3s] success check exited 1
+           | check failed: nope.txt was never created
+[   0.3s] docs_gap (stop reason: completed)
+```
+
+Commands that failed print their output; ones that succeeded stay quiet until
+`--verbose`. Everything else is still in the JSONL, and `jq` reads it.
+
+## quickstarted report
+
+```bash
+quickstarted report results/ --out report.html
+```
+
+One self-contained page: pass rates, every documentation gap with the check's
+own output and the page the agent was on, and the transcripts folded away
+behind disclosures. No external stylesheet, script, or font, because a report
+that fetches anything renders differently for the person you sent it to.
+
 ## quickstarted schema
 
 ```bash
@@ -112,8 +144,7 @@ before trusting any number the tool produces.
 quickstarted run [TASK ...] [options]
 ```
 
-Exits 0 when every task passed every attempt that produced evidence, and 1
-otherwise.
+Exit codes are in the table below.
 
 With no paths it runs every `.yaml` in `tasks/`, or in the current directory if
 there is no `tasks/`. A path may be a file, a directory, or a glob, and globs
@@ -173,7 +204,14 @@ Under `--workers` above one, every line is labelled with its task and attempt.
 | `--out` | none | Directory for traces, reports, and results.json |
 | `--junit` | none | Path for a JUnit XML report |
 | `--prices` | `$QUICKSTARTED_PRICES` | Price book for cost estimates |
-| `--strict-inconclusive` | off | Exit 1 if any run produced no evidence |
+| `--refresh-prices` | off | Fetch current rates before pricing |
+| `--max-spend` | none | Stop once the estimated cost reaches this many dollars |
+| `--github-summary` | off | Append the markdown report to `$GITHUB_STEP_SUMMARY` |
+| `--strict-inconclusive` | off | Treat "no evidence" as failure (exit 1, not 2) |
+
+Inside a GitHub workflow a documentation gap also emits an annotation pointing
+at the task file that defines it, so the failure lands beside the diff rather
+than inside a log.
 
 ## Configuration file
 
@@ -198,11 +236,28 @@ means and belong in the command you can see.
 
 ## Exit codes
 
+Meant to be branched on, because "your quickstart is broken" and "somebody
+else's API returned 429" need different people to do different things.
+
 | Code | Meaning |
 | --- | --- |
-| 0 | Every task passed every evidential attempt |
-| 1 | A task failed, a file was invalid, or the backend was refused |
-| 3 | Bad usage: no such workspace, a malformed config, a file that would be clobbered |
+| 0 | Every task passed every attempt that produced evidence |
+| 1 | A documentation gap: a run finished and the check failed |
+| 2 | No evidence at all, from rate limits, budgets, or nothing to run |
+| 3 | Usage: no tasks found, an invalid task file, a refused backend |
+| 130 | Interrupted, or stopped at `--max-spend` |
+
+`--strict-inconclusive` collapses 2 into 1 for anyone who would rather a job go
+red whenever a run failed to produce evidence.
+
+```bash
+quickstarted run --agent claude
+case $? in
+  0) echo "docs hold" ;;
+  1) echo "a real documentation gap, page the docs owner" ;;
+  2) echo "we learned nothing; retry later, do not page anyone" ;;
+esac
+```
 
 ## Examples
 

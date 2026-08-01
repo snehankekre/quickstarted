@@ -33,7 +33,7 @@ def test_load_valid(tmp_path):
     # entrypoint host auto-added to the allowlist, ahead of listed hosts
     assert j.docs_allow == ("example.com", "pypi.org")
     assert j.budgets.max_turns == 3
-    assert j.budgets.max_seconds == 900  # default preserved
+    assert j.budgets.max_seconds == 480  # default preserved
     assert j.replay == ("echo hi",)
 
 

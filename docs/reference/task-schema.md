@@ -191,7 +191,7 @@ author's expectation rather than the documentation.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `max_turns` | 20 | Tool-use rounds before the run stops |
-| `max_seconds` | 900 | Wall clock for the agent phase |
+| `max_seconds` | 480 | Wall clock for the agent phase |
 | `max_command_seconds` | 300 | Timeout for one command |
 | `max_output_chars` | 20000 | Per command; head and tail are kept |
 | `max_tokens` | 0 | All four token counters combined; 0 is unlimited |

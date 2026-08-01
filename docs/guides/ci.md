@@ -98,6 +98,41 @@ A 429 produces `infra_error`, which stays out of the pass rate. In JUnit XML it
 becomes an `<error>` rather than a `<failure>`, so the distinction survives into
 whatever dashboard reads the file.
 
+The exit code carries it too. A sweep that produced no evidence at all exits 2,
+not 1, so a workflow can tell "your quickstart is broken" from "we learned
+nothing today":
+
+```bash
+quickstarted run --agent claude
+case $? in
+  0) ;;                                    # docs hold
+  1) gh issue create --title "docs gap" ;; # a real failure, worth a human
+  2) echo "no evidence; not a docs problem" ;;
+esac
+```
+
+## Agent-only tasks are skipped, not failed
+
+A task with no `replay` block has nothing for replay mode to run. It reports as
+skipped, appears in JUnit as `<skipped/>`, and stays out of the discarded
+counts. A suite of them used to report "no evidence" on every push, which reads
+like the tool is broken rather than like there was nothing to do.
+
+## What lands in the pull request
+
+`--github-summary` appends the markdown report to the job summary, and it is on
+by default in the composite action. A documentation gap also emits an
+annotation anchored to the task file:
+
+```
+::error file=tasks/fastapi-quickstart.yaml,title=quickstarted::pass rate 0% for
+fastapi-quickstart. check failed: nothing can serve app.py
+Last documentation page read before failing: https://fastapi.tiangolo.com/...
+```
+
+For a human to read afterwards, `quickstarted report results/ --out report.html`
+turns the artifact directory into one self-contained page.
+
 If you would rather a job go red whenever any run failed to produce evidence:
 
 ```bash
