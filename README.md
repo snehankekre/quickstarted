@@ -197,10 +197,44 @@ documentation:
 | `infra_error` | rate limit, upstream 5xx, network failure | no |
 | `harness_error` | misconfigured task, our bug | no |
 | `agent_refusal` | model declined | no |
+| `skipped` | nothing ran, and nothing was meant to | no |
 
 Runs that produced no evidence are excluded from the numerator *and* the
 denominator, and reported separately. When nothing produced evidence the suite
 says so. Reporting 0% there would be a different claim, and a false one.
+
+`skipped` is counted apart from the rest: a task with no `replay` block, run
+under `--agent replay`, is out of scope for the mode it was asked to run in.
+Listing that beside a rate limit and a harness bug invites reading all three as
+damage.
+
+## Did the change help?
+
+That is the question you have after editing the page, and one run cannot answer
+it:
+
+```
+quickstarted run --agent claude --repeat 10 --out before/
+# edit the page
+quickstarted run --agent claude --repeat 10 --out after/
+quickstarted diff before/results.json after/results.json
+```
+
+```
+  fastapi-quickstart
+      2/10 (20%)  ->  8/10 (80%)
+      improved, p=0.023
+```
+
+Every comparison carries a two-sided Fisher exact test, and when the samples
+were too small for any outcome to have cleared the bar, it says that instead of
+reporting a result. Three attempts a side never can. Four can. That is worth
+knowing before a sweep rather than after reading a number you cannot use.
+`--fail-on-regression` is the CI form of the same question.
+
+To read a run back, `quickstarted show <trace.jsonl>` narrates one in order, and
+`quickstarted report results/ --out report.html` turns a whole suite into one
+self-contained page to forward to whoever owns the documentation.
 
 ## Does llms.txt actually help?
 
@@ -285,10 +319,12 @@ jobs:
           path: results/
 ```
 
-`quickstarted run` exits 1 when any task fails, so either job can gate
-merges. `results.json` is versioned (schema 2.0). JUnit XML reports a docs gap
-as a failure and infrastructure trouble as an error, so a rate limit does not
-read as a broken quickstart.
+Exit codes are meant to be branched on, because "your quickstart is broken" and
+"somebody else's API returned 429" need different people to do different
+things: 0 passed, 1 a documentation gap, 2 no evidence at all, 3 usage, 130
+interrupted or stopped at `--max-spend`. `results.json` is versioned (schema
+2.0). JUnit XML reports a docs gap as a failure and infrastructure trouble as an
+error, so a rate limit does not read as a broken quickstart.
 
 Repeated flags belong in `quickstarted.yaml` instead:
 

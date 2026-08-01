@@ -3,6 +3,48 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-08-01
+
+The last of the papercuts, and a documentation site that says what 0.4.0
+actually shipped.
+
+### Changed
+
+- **One name for one act: `read_docs`.** The tool the model is offered was
+  `read_docs`, the method behind it was `fetch`, and the events they wrote were
+  `docs_fetch`, `fetch_blocked` and `fetch_error`. Three words for the same
+  thing, and a trace was where a reader met all three. Everything is `read_docs`
+  now, and the trace events are `docs_read`, `docs_read_blocked` and
+  `docs_read_error`. `Trace.fetched_urls` is `pages_read`, which is the name
+  `results.json` already used for the field it fills. `quickstarted show` and
+  `report` still read the 0.4.0 event names, so traces already sitting in a
+  results directory do not render as blank runs.
+- **The task schema reads its budget defaults off the code.** It advertised
+  `max_seconds: 900` for a release after the default had moved to 480, and the
+  published-copy test passed because the published copy was wrong in the same
+  way. A test now compares the schema against the `Budgets` dataclass.
+- **`success` carries the exactly-one-of `script`/`file` rule**, which the
+  loader has always enforced, so an editor says it before a run does.
+
+### Documentation
+
+- **The site describes 0.4.0.** The composite action listed ten inputs and has
+  nineteen. `results.json` gained `interrupted`, `totals.unpriced_models` and a
+  per-task `skipped` count, and the reference described none of them, so
+  anything written against that page would have read a partial cost total as a
+  complete one. `skipped` was missing from the classification table entirely.
+  Agent mode still said a price book was the only route to dollars, and the CI
+  guide still said schema 1.0.
+- `quickstarted show`, `report` and `diff` now appear in the pages where
+  somebody would look for them rather than only in the CLI reference, and
+  `validate`'s notes are described as notes rather than warnings.
+- **A theme that looks like the thing it documents.** Serif prose, mono
+  structure, and output the tool printed set on a dark readout panel while
+  commands you type stay on paper. That distinction was already in the Markdown
+  and nothing had ever drawn it. `[PASS]` and `[FAIL]` are coloured inside those
+  panels the way the CLI colours them, with a test that fails if the CLI grows a
+  label the site does not know about.
+
 ## [0.4.0] - 2026-08-01
 
 The release about the hour between `pip install` and a task you trust, and
