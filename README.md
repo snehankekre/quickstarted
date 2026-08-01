@@ -18,9 +18,34 @@ Full documentation: **https://snehankekre.com/quickstarted/**
 
 **Status: early. The interface will change.**
 
+## Try it in one command
+
+```bash
+uvx quickstarted run --example streamlit --agent replay
+```
+
+No API key, no cost, and nothing to clone:
+
+```
+  [    0s] started on seatbelt
+  [    2s] read https://docs.streamlit.io/get-started
+  [   19s] blocked from the shell: checkip.amazonaws.com
+  [   20s] check exited 0
+[PASS] streamlit-quickstart (replay)
+  classification: passed
+  turns: 2, duration: 19.6s
+  backend: seatbelt
+  docs pages read: 1
+```
+
+That ran the commands Streamlit's documentation tells a reader to type, booted
+the app, and polled its health endpoint. The third line is the sandbox refusing
+Streamlit's own call home, which is what enforcement looks like from the
+outside. `quickstarted examples` lists the others.
+
 ## How it works
 
-You write a task, in YAML. This one points at Streamlit's documentation:
+You write a task, in YAML. `quickstarted init <docs-url>` scaffolds one:
 
 ```yaml
 name: streamlit-quickstart
@@ -39,7 +64,7 @@ setup:
 success:
   script: |
     set -e
-    test -f app.py
+    test -f app.py || qs_fail "no app.py, so the quickstart produced nothing"
     .venv/bin/python -c "import streamlit"
 ```
 
@@ -80,22 +105,59 @@ The vendor-standard names still work as a fallback, which is what CI sets.
 
 ## The success script is the whole verdict
 
-When the agent stops, the harness runs your `success.script` in the same
-workspace. Exit code 0 is a pass. Nothing else is. The agent's own claim of
-success is recorded and never trusted, and there is no LLM judge anywhere in
-scoring, because a model asked to grade its own work will tell you the app is
-ready when `app.py` does not parse.
+When the agent stops, the harness runs your check in the same workspace. Exit
+code 0 is a pass. Nothing else is. The agent's own claim of success is recorded
+and never trusted, and there is no LLM judge anywhere in scoring, because a
+model asked to grade its own work will tell you the app is ready when `app.py`
+does not parse.
 
 Most checks are the size of the one above. You are asserting whatever your
 tutorial already promises the reader: the file exists, the import works, the
 command runs, the output contains the number on the page. If your quickstart
 ends with "you should see `200`", the check is `grep -q 200`.
 
-You can go stricter when it is worth it.
-[tasks/streamlit-quickstart.yaml](tasks/streamlit-quickstart.yaml) boots
-the app headless and polls Streamlit's own health endpoint, which is about
-fifteen more lines and proves the app actually serves. That is optional. Start
-with the two-line version.
+**Say what you saw.** `qs_fail` is defined for every check, and a failure that
+reports `check failed: httpx is not a dependency in pyproject.toml` is a bug
+report, where `exit code: 1` is a page to go and guess about.
+
+**Keep a long check in a file.** `success.file: checks/mine.sh` puts it beside
+the task, where shellcheck and syntax highlighting work on it. It is read when
+the task loads and never written into the workspace, so the agent cannot read
+its own success criteria.
+
+**Let the harness boot the server.** If the goal is a running application, do
+not ask the agent to leave a process running and do not take its word for it:
+
+```yaml
+success:
+  serve: .venv/bin/fastapi run app.py --host 127.0.0.1 --port $QS_PORT
+  wait_http:
+    path: /items/42
+    json:
+      item_id: 42
+  script: test -f app.py
+```
+
+The harness backgrounds it, polls, keeps the last error, dumps the server log
+when it gives up, and kills it. Every criterion is still yours: a task that
+serves and asserts nothing is a validation error, because a server that answers
+every request with a 500 also boots.
+
+## Iterate on a check for free
+
+```bash
+quickstarted run tasks/mine.yaml --agent claude --keep-sandbox
+quickstarted check tasks/mine.yaml --sandbox /tmp/quickstarted-8ilw9l6v/workspace
+```
+
+`check` re-runs only the success script against the workspace the run left
+behind, under the same backend. About a second per iteration, instead of a paid
+run per iteration.
+
+`quickstarted validate` catches the rest before you spend anything: a check that
+requires a `.venv` nothing creates, a check that can fail in silence, an
+entrypoint that 404s (`--check-urls`). Every one of those produces a number that
+is wrong rather than low.
 
 ## Replay mode, the free precondition
 
@@ -119,8 +181,10 @@ The same docs and the same model can pass at 10:00 and fail at 10:05. One run
 is a sample. Use `--repeat` and read the rate:
 
 ```
-quickstarted run tasks/*.yaml --agent claude --repeat 5 --workers 3
+quickstarted run --repeat 5 --workers 3 --agent claude
 ```
+
+With no paths, that runs every task in `tasks/`.
 
 Every run is classified, and only two classifications say anything about your
 documentation:
@@ -165,19 +229,21 @@ Agent-authored commands from somebody else's quickstart are untrusted code.
 | Backend | Filesystem | Network |
 | --- | --- | --- |
 | `docker` | container | internal network; the proxy sidecar is the only route out |
-| `seatbelt` (macOS) | home directory unreadable, writes confined to the workspace | all egress denied except the harness proxy |
+| `seatbelt` (macOS) | home directory unreadable, writes confined to the workspace | all egress denied except the harness proxy and loopback |
 | `local` | none | none; proxy variables are advisory |
 
 `auto` picks the best available. `quickstarted run` refuses `local` unless you
 pass `--allow-unenforced`. Run `quickstarted doctor` to see what your machine
-can enforce. Details in [SECURITY.md](SECURITY.md).
+can enforce, which SDKs and keys it can find, and whether your tasks parse.
+Details in [SECURITY.md](SECURITY.md).
 
 ## Install
 
-```
-pip install "quickstarted[claude]"       # agent mode with Claude
-pip install "quickstarted[all-agents]"   # + OpenAI and Gemini
-pip install quickstarted                 # replay mode only, no SDK
+```bash
+uvx quickstarted run --example httpx --agent replay   # nothing to install
+pip install "quickstarted[claude]"                    # agent mode with Claude
+pip install "quickstarted[all-agents]"                # + OpenAI and Gemini
+pip install quickstarted                              # replay mode only, no SDK
 ```
 
 Python 3.9+. One runtime dependency: PyYAML. Every adapter is a plain tool-use
@@ -190,7 +256,7 @@ Two jobs, on two schedules. Replay on every push, because it is free:
 
 ```yaml
 - run: pip install quickstarted
-- run: quickstarted run tasks/*.yaml --agent replay --junit junit.xml
+- run: quickstarted run --agent replay --junit junit.xml
 ```
 
 Agent mode on a schedule, or when a model ships, because it costs real tokens:
@@ -208,7 +274,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install "quickstarted[claude]"
-      - run: quickstarted run tasks/*.yaml --agent claude --repeat 3
+      - run: quickstarted run --agent claude --repeat 3
              --out results --junit junit.xml
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -220,9 +286,24 @@ jobs:
 ```
 
 `quickstarted run` exits 1 when any task fails, so either job can gate
-merges. `results.json` is versioned (schema 1.0). JUnit XML reports a docs gap
+merges. `results.json` is versioned (schema 2.0). JUnit XML reports a docs gap
 as a failure and infrastructure trouble as an error, so a rate limit does not
 read as a broken quickstart.
+
+Repeated flags belong in `quickstarted.yaml` instead:
+
+```yaml
+run:
+  backend: docker
+  cache_dir: .cache
+tasks:
+  setup:
+    - python3 -m venv .venv
+```
+
+It refuses `agent`, `model`, `repeat` and `affordances`. A file that quietly
+changed which model served a task would make two runs incomparable for a reason
+invisible in the command you typed.
 
 ## Fetching other people's docs
 
