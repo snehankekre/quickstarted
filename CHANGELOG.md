@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.0] - 2026-08-01
 
 Authoring a task was the part that needed a person to already know the tool.
 This release is about the hour between `pip install` and a task you trust, and
@@ -51,8 +51,45 @@ experience, it produces a wrong number.
   which replay-mode CI reports as inconclusive. `--check-urls` also fetches each
   entrypoint, so a dead link surfaces before a sweep pays for it.
 
+- **Three example tasks ship inside the wheel** (`httpx`, `streamlit`, `vite`),
+  with `quickstarted examples` and `--example NAME`. `tasks/` is in the sdist
+  only, so a `pip install` user did not have the file the documentation told
+  them to start with. `uvx quickstarted run --example streamlit --agent replay`
+  now produces a real result with nothing installed and no key, which also
+  makes the tool usable from a JavaScript or Go project without adopting a
+  Python environment.
+- **`run` and `validate` find tasks on their own.** With no paths they read
+  `tasks/`, or the current directory. A path may be a file, a directory, or a
+  glob, and globs are expanded internally as well as by the shell, because
+  PowerShell hands `tasks/*.yaml` through literally and the documented command
+  died on Windows with 'no such file'. Validating nothing now exits 3 rather
+  than 0, so a CI job in the wrong directory stops reporting success.
+- **A run says what it is doing while it does it.** Each documentation page as
+  the agent reads it, each blocked egress attempt, and the check's exit code.
+  `--repeat 5 --workers 3` printed nothing for minutes while spending money,
+  and a slow model looked exactly like a hung container. `--verbose` adds every
+  shell command, `--quiet` restores the old behaviour, and lines are labelled
+  with task and attempt when more than one is in flight.
+- **`doctor` covers the machine, not just Anthropic.** All three providers with
+  the environment variable each key came from, whether the Docker daemon
+  answers and the default image is pulled, which config file is in effect, and
+  whether the tasks it can find parse.
+
+### Changed
+
+- **The `journeys/` path fallback is gone**, as 0.3.0 said it would be. A path
+  under `journeys/` now fails and the error names the `tasks/` path to use
+  instead. The deprecated `journeys` input on the Action is removed with it.
+- Unknown keys under `success` are now an error, matching `budgets` and
+  `network`, so a typo fails loudly instead of being ignored.
+
 ### Fixed
 
+- **Six tasks in this repo could still fail in silence**, which 0.3.1 believed
+  it had finished. `prisma` and `vite` actually did it during a replay sweep,
+  reporting a documentation page with no reason to go and read it. Every shell
+  assertion in `django`, `duckdb`, `polars`, `prisma`, `vite` and
+  `quickstarted-quickstart` now names what it saw.
 - **The seatbelt backend could not run any task that starts a server.** The
   profile's `(allow network-bind (local ip "localhost:*"))` never matched, so
   the bind was refused outright, and polling was denied separately because only
