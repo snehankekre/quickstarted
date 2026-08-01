@@ -87,6 +87,28 @@
       "type": "object",
       "additionalProperties": false,
       "description": "What decides the verdict. The harness owns the mechanism; every criterion is yours.",
+      "anyOf": [
+        {
+          "required": [
+            "script"
+          ],
+          "not": {
+            "required": [
+              "file"
+            ]
+          }
+        },
+        {
+          "required": [
+            "file"
+          ],
+          "not": {
+            "required": [
+              "script"
+            ]
+          }
+        }
+      ],
       "properties": {
         "script": {
           "type": "string",
@@ -168,7 +190,8 @@
         },
         "max_seconds": {
           "type": "integer",
-          "default": 900
+          "default": 480,
+          "description": "Wall clock for the agent phase."
         },
         "max_command_seconds": {
           "type": "integer",
@@ -176,7 +199,8 @@
         },
         "max_output_chars": {
           "type": "integer",
-          "default": 20000
+          "default": 20000,
+          "description": "Per command. The head and the tail are kept."
         },
         "max_tokens": {
           "type": "integer",

@@ -81,3 +81,12 @@ which modes each file supports:
 ok       tasks/httpx.yaml (httpx-quickstart, replay+agent)
 ok       tasks/streamlit-quickstart.yaml (streamlit-quickstart, agent-only)
 ```
+
+An agent-only task run under `--agent replay` is reported as `skipped`. Nothing
+ran, and nothing was meant to, so it stays out of the discarded counts. Until
+0.4.0 it was a `harness_error`, which meant a suite where half the tasks were
+agent-only reported "no evidence" on every push and read like the tool was
+broken.
+
+`validate` prints a note for a task with no `replay` block, so the skip is a
+decision you made rather than something you find out about in CI.

@@ -34,7 +34,11 @@ quickstarted validate tasks/*.yaml [--check-urls]
 Parses each file, prints its name and available modes, and warns about the
 mistakes that produce a wrong number rather than a low one: a check requiring an
 environment directory nothing creates, a check that can fail without saying why,
-an allowlist that would break installs. Exits 1 if any file is invalid.
+an allowlist that would break installs.
+
+Exits 1 if any file is invalid, and 3 if it found no files at all, because
+exiting 0 there lets a job in the wrong directory report success for validating
+nothing.
 
 `--check-urls` also fetches every entrypoint, honouring `robots.txt`, so a dead
 link surfaces before a sweep pays for it.
@@ -134,9 +138,13 @@ at lives at
 quickstarted doctor [--prices PATH]
 ```
 
-Reports which execution backends this machine has, which one `auto` would
-choose, whether a price book loaded, and whether an API key is visible. Run it
-before trusting any number the tool produces.
+Reports which execution backends this machine has and which one `auto` would
+choose; whether the Docker daemon answers and the default image is already
+pulled; all three providers, with the SDK, the key, and the environment
+variable the key came from; whether a price book loaded; which
+`quickstarted.yaml` is in effect; and how many tasks it can find and parse.
+Run it before trusting any number the tool produces. There is a sample of its
+output on the [install page](../getting-started/install.md#check-your-machine).
 
 ## quickstarted run
 
@@ -150,6 +158,12 @@ With no paths it runs every `.yaml` in `tasks/`, or in the current directory if
 there is no `tasks/`. A path may be a file, a directory, or a glob, and globs
 are expanded here as well as by the shell, because PowerShell hands
 `tasks/*.yaml` through literally.
+
+### Choosing what to run
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--example` | none | Run a task that ships inside the package; see `quickstarted examples` |
 
 ### Watching a run
 
@@ -167,7 +181,7 @@ Under `--workers` above one, every line is labelled with its task and attempt.
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--agent` | `replay` | `replay`, `claude`, `openai`, or `gemini` |
-| `--model` | vendor default | Required for `openai` and `gemini` |
+| `--model` | `claude-opus-5` for `claude`; none elsewhere | Required for `openai` and `gemini`, which have no default on purpose. Ignored by `replay` |
 
 ### Repetition and concurrency
 

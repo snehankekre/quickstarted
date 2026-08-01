@@ -49,9 +49,16 @@ Every run gets exactly one.
 | `infra_error` | rate limit, upstream 5xx, network failure | no |
 | `harness_error` | misconfigured task, missing credentials, our bug | no |
 | `agent_refusal` | the model declined the task | no |
+| `skipped` | nothing ran, and nothing was meant to | no |
 
 Only the first two say anything about your documentation. The rest are excluded
 from the numerator and the denominator alike, then reported under `discarded`.
+
+`skipped` is the exception to that last clause. A task with no `replay` block,
+run under `--agent replay`, is out of scope for the mode it was asked to run in.
+Nothing ran, and nothing was meant to. It is counted separately from
+`discarded`, so a suite where half the tasks are agent-only stops reporting "no
+evidence" on every push. `quickstarted validate` says which tasks those are.
 
 The alternative is worse than useless. A sweep of fifty projects will hit 429s,
 and counting those as failed quickstarts would name companies as having broken

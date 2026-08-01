@@ -12,7 +12,19 @@ and `tests/test_schema.py` fails if the published copy in `docs/` has drifted.
 
 from __future__ import annotations
 
+import dataclasses
+
+from .task import Budgets
+
 SCHEMA_URL = "https://snehankekre.com/quickstarted/task-schema.json"
+
+#: Read off the dataclass rather than retyped. The schema said `max_seconds`
+#: defaults to 900 for a release after the code had moved to 480, and nothing
+#: caught it: the published copy is compared against this module, and both were
+#: wrong together.
+_BUDGET_DEFAULTS = {
+    f.name: f.default for f in dataclasses.fields(Budgets)
+}
 
 #: The editor hint that makes a task file self-describing.
 SCHEMA_LINE = f"# yaml-language-server: $schema={SCHEMA_URL}"
@@ -111,6 +123,12 @@ TASK_SCHEMA: dict = {
                 "What decides the verdict. The harness owns the mechanism; every "
                 "criterion is yours."
             ),
+            # Exactly one of the two, which is what the loader enforces. Saying
+            # it here means the editor says it too, before the run.
+            "anyOf": [
+                {"required": ["script"], "not": {"required": ["file"]}},
+                {"required": ["file"], "not": {"required": ["script"]}},
+            ],
             "properties": {
                 "script": {
                     "type": "string",
@@ -183,13 +201,27 @@ TASK_SCHEMA: dict = {
                 "failure, so too small a budget quietly removes it from results."
             ),
             "properties": {
-                "max_turns": {"type": "integer", "default": 20},
-                "max_seconds": {"type": "integer", "default": 900},
-                "max_command_seconds": {"type": "integer", "default": 300},
-                "max_output_chars": {"type": "integer", "default": 20000},
+                "max_turns": {
+                    "type": "integer",
+                    "default": _BUDGET_DEFAULTS["max_turns"],
+                },
+                "max_seconds": {
+                    "type": "integer",
+                    "default": _BUDGET_DEFAULTS["max_seconds"],
+                    "description": "Wall clock for the agent phase.",
+                },
+                "max_command_seconds": {
+                    "type": "integer",
+                    "default": _BUDGET_DEFAULTS["max_command_seconds"],
+                },
+                "max_output_chars": {
+                    "type": "integer",
+                    "default": _BUDGET_DEFAULTS["max_output_chars"],
+                    "description": "Per command. The head and the tail are kept.",
+                },
                 "max_tokens": {
                     "type": "integer",
-                    "default": 0,
+                    "default": _BUDGET_DEFAULTS["max_tokens"],
                     "description": "Billable tokens, cache included. 0 means unlimited.",
                 },
             },

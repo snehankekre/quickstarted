@@ -19,6 +19,23 @@ def test_published_schema_matches_the_code():
     )
 
 
+def test_budget_defaults_come_from_the_dataclass():
+    """The schema advertised max_seconds: 900 for a release after the code had
+    moved to 480, and the published-copy test passed because both were wrong."""
+    from quickstarted.task import Budgets
+
+    advertised = TASK_SCHEMA["properties"]["budgets"]["properties"]
+    real = Budgets()
+    for field, spec in advertised.items():
+        assert spec["default"] == getattr(real, field), field
+
+
+def test_a_success_block_needs_exactly_one_of_script_and_file():
+    """The loader rejects both and neither; an editor should say so first."""
+    forms = TASK_SCHEMA["properties"]["success"]["anyOf"]
+    assert {"script", "file"} == {branch["required"][0] for branch in forms}
+
+
 def test_schema_line_points_at_the_published_file():
     assert TASK_SCHEMA["$id"] in SCHEMA_LINE
 

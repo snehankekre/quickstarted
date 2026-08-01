@@ -9,7 +9,7 @@ field changes meaning, so anything parsing this file can check one number.
 ```json
 {
   "schema_version": "2.0",
-  "quickstarted_version": "0.3.0",
+  "quickstarted_version": "0.4.0",
   "generated_at": "2026-07-26T04:11:07Z",
   "environment": {
     "python": "3.12.4",
@@ -19,10 +19,12 @@ field changes meaning, so anything parsing this file can check one number.
   },
   "repeat": 3,
   "duration_seconds": 214.7,
+  "interrupted": false,
   "totals": {
     "runs": 6,
     "tokens": {"input": 88, "output": 9134, "cache_write": 60215, "cache_read": 402118},
-    "estimated_cost_usd": null
+    "estimated_cost_usd": 1.84,
+    "unpriced_models": ["claude-opus-5"]
   },
   "tasks": [ ... ]
 }
@@ -30,6 +32,15 @@ field changes meaning, so anything parsing this file can check one number.
 
 `environment.backend` is the resolved backend, never `auto`. A published result
 has to say what was enforced.
+
+`interrupted` is true when Ctrl-C or `--max-spend` stopped the sweep early. The
+runs that had already finished are still here and still evidence, but a reader
+comparing two documents needs to know one of them stopped short.
+
+`unpriced_models` names every model the price book could not price. Their tokens
+are in the token totals and their dollars are in nobody's, so a two-model sweep
+could otherwise report one model's spend as the whole figure. An empty list is
+the only way to read `estimated_cost_usd` as complete.
 
 ## Per task
 
@@ -42,6 +53,7 @@ has to say what was enforced.
   "evidential_runs": 2,
   "pass_rate": 1.0,
   "discarded": {"budget_exhausted": 1},
+  "skipped": 0,
   "models_reported": ["claude-haiku-4-5-20251001"],
   "suspect_pages": {"https://duckdb.org/docs/clients/python/overview": 1},
   "tokens": {"input": 25608, "output": 5387, "cache_write": 26486, "cache_read": 261469},
@@ -53,7 +65,7 @@ has to say what was enforced.
 Note the arithmetic, because it is the whole point of the schema. Three attempts,
 one ran out of turns, so `evidential_runs` is 2 and `pass_rate` is 1.0. The rate
 is over what produced evidence, never over what was attempted, and `attempts`
-minus `evidential_runs` always equals the sum of `discarded`. A consumer that
+minus `evidential_runs` always equals `discarded` plus `skipped`. A consumer that
 divides `passes` by `attempts` gets 0.67 and reports a documentation problem that
 the runs do not support.
 
@@ -66,10 +78,15 @@ where a run ran out of turns is useful even when it cannot count toward a rate.
 | `evidential_runs` | Runs that said something about the documentation |
 | `passes` | Runs classified `passed` |
 | `pass_rate` | `passes / evidential_runs`, or `null` when nothing was evidence |
-| `discarded` | Counts by classification for non-evidential runs |
+| `discarded` | Counts by classification for runs that should have produced evidence and did not |
+| `skipped` | Runs that were never in scope, counted apart from `discarded` |
 | `models_reported` | Distinct models the API actually served |
 | `suspect_pages` | Last page read before each failure, most frequent first |
 | `estimated_cost_usd` | `null` unless a price book was supplied |
+
+`skipped` is not in `discarded` on purpose. Listing "nothing to run here" beside
+a rate limit and a harness bug invites reading all three as damage. `attempts`
+minus `evidential_runs` equals the sum of `discarded` plus `skipped`.
 
 `pass_rate` is `null` rather than `0` when no run produced evidence. Zero would
 assert a documentation failure the runs do not support.
@@ -129,6 +146,7 @@ failure: the agent believed it was done and the script disagreed.
 quickstarted run tasks/*.yaml --junit junit.xml
 ```
 
-A `docs_gap` becomes a `<failure>`. Everything non-evidential becomes an
-`<error>`. Any dashboard that reads JUnit then distinguishes a broken quickstart
-from a rate limit without knowing anything about this tool.
+A `docs_gap` becomes a `<failure>`. A `skipped` run becomes a `<skipped/>`,
+which is the word JUnit already has for it. Everything else non-evidential
+becomes an `<error>`. Any dashboard that reads JUnit then distinguishes a broken
+quickstart from a rate limit without knowing anything about this tool.

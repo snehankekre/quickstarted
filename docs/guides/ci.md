@@ -33,7 +33,11 @@ jobs:
           path: results/
 ```
 
-`quickstarted run` exits 1 when any task fails, so the job gates the merge.
+`quickstarted run` exits 1 on a documentation gap, so the job gates the merge.
+It exits 2 when nothing produced evidence and 3 on a usage error such as a job
+running in the wrong directory, which used to look like success. The full table
+is in the [CLI reference](../reference/cli.md#exit-codes).
+
 GitHub runners have Docker, so `--backend docker` gets you an enforced boundary
 at no extra cost.
 
@@ -85,9 +89,37 @@ scheduled job. One nightly failure means very little on its own.
     junit: junit.xml
 ```
 
-Inputs: `tasks`, `agent`, `model`, `repeat`, `workers`, `backend`,
-`affordances`, `python-version`, `out`, `junit`. Leave `tasks` empty and the CLI
-runs everything in `tasks/`.
+Every input maps to the flag of the same name:
+
+| Input | Default | Flag |
+| --- | --- | --- |
+| `tasks` | everything in `tasks/` | positional paths |
+| `agent` | `replay` | `--agent` |
+| `model` | | `--model` |
+| `repeat` | `1` | `--repeat` |
+| `workers` | `1` | `--workers` |
+| `backend` | `docker` | `--backend` |
+| `image` | | `--image` |
+| `affordances` | `all` | `--affordances` |
+| `probe-affordances` | `false` | `--probe-affordances` |
+| `cache-dir` | | `--cache-dir` |
+| `prices` | | `--prices` |
+| `max-spend` | | `--max-spend` |
+| `out` | `quickstarted-results` | `--out` |
+| `junit` | | `--junit` |
+| `github-summary` | `true` | `--github-summary` |
+| `strict-inconclusive` | `false` | `--strict-inconclusive` |
+| `allow-unenforced` | `false` | `--allow-unenforced` |
+| `python-version` | `3.12` | the Python the action sets up |
+| `working-directory` | `.` | where the CLI runs |
+
+Leave `tasks` empty and the CLI runs everything in `tasks/`. The action always
+writes `--out`, so the results directory exists to upload even when the run
+went red.
+
+Picking an agent picks the install: `agent: claude` installs
+`quickstarted[claude,prices]`, so dollars appear in the job summary without a
+price book. Runners are on Python 3.12, where the `prices` extra installs.
 
 The `journeys` input that 0.3.0 kept as a deprecated alias was removed in
 0.4.0, along with the `journeys/` path fallback.
@@ -139,6 +171,20 @@ If you would rather a job go red whenever any run failed to produce evidence:
 quickstarted run tasks/*.yaml --agent claude --strict-inconclusive
 ```
 
+## Gating on a regression rather than a verdict
+
+Once you have a baseline, the question a scheduled job should answer is whether
+today is worse than last week, not whether one run failed:
+
+```bash
+quickstarted run tasks/*.yaml --agent claude --repeat 10 --out today/
+quickstarted diff baseline/results.json today/results.json --fail-on-regression
+```
+
+`--fail-on-regression` exits 1 only when a pass rate dropped by more than noise
+at those sample sizes, so a job does not go red for a run that moved 8/10 to
+7/10. See [pass rates](pass-rates.md#did-the-documentation-change-help).
+
 ## Caching documentation between runs
 
 ```bash
@@ -157,7 +203,7 @@ better citizen to the sites you are fetching from.
 
 ## Machine-readable output
 
-`--out` writes `results.json` (schema 1.0), a per-task `trace.jsonl`, a
+`--out` writes `results.json` (schema 2.0), a per-task `trace.jsonl`, a
 Markdown report per run, and `suite.md`. Fields are added but not repurposed,
 and the schema version goes up when that stops being true. See
 [results schema](../reference/results.md).

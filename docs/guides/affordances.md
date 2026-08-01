@@ -27,7 +27,17 @@ whether the affordance existed for the agent, so the difference in pass rate
 is attributable to the affordance.
 
 Run both at `--repeat 10` or more. A five-point difference between two
-five-attempt samples is noise.
+five-attempt samples is noise, and `quickstarted diff` will say so rather than
+let you publish it:
+
+```bash
+quickstarted run tasks/x.yaml --agent claude --repeat 10 --out with/
+quickstarted run tasks/x.yaml --agent claude --repeat 10 --affordances none --out without/
+quickstarted diff without/results.json with/results.json
+```
+
+Put the withheld arm first, so the reported direction is what the affordance
+added. `--help` on `--affordances` carries the same three commands.
 
 ## Probing without changing anything
 

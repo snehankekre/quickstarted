@@ -224,9 +224,20 @@ way to get a number that is wrong rather than low:
   have passed.
 - A check that can exit non-zero while printing nothing, which reports a page
   and no reason.
-- A task with no `replay` block, which replay-mode CI reports as inconclusive.
-- A registry declared as a documentation host, an attribution gap, or a Node
-  toolchain with no `image`.
+- A registry declared as a documentation host, which breaks the installs the
+  quickstart needs.
+- A success script that calls a Node tool with no `image` set, since the default
+  image has no Node.
+
+Notes are neither. They say what a choice implies, and both are legitimate
+choices:
+
+- A task with no `replay` block, so `--agent replay` skips it.
+- A host that is both a documentation host and network-allowed, so pages the
+  shell reads there are not recorded.
+
+Validating no files at all exits 3 rather than 0, so a CI job pointed at the
+wrong directory stops reporting success.
 
 `--check-urls` also fetches each entrypoint, so a dead link surfaces before a
 sweep pays for it rather than after.

@@ -115,6 +115,26 @@ Commands run in a container, or under a kernel sandbox on macOS.
 on a rate limit are excluded from it instead of being counted as documentation
 failures. [Pass rates](guides/pass-rates.md)
 
+## Did the change help?
+
+That is the question you have after you edit the page, and it is the one a
+single verdict cannot answer.
+
+```bash
+quickstarted diff before/results.json after/results.json
+```
+
+```
+  fastapi-quickstart
+      2/10 (20%)  ->  8/10 (80%)
+      improved, p=0.023
+```
+
+Every comparison carries a two-sided Fisher exact test, and when the samples
+were too small for any outcome to have cleared the bar, it says that instead of
+reporting a result. Three attempts a side never can. Four can.
+[quickstarted diff](reference/cli.md#quickstarted-diff)
+
 ## Does llms.txt help?
 
 Nobody knows, because presence is easy to check and effect is not. quickstarted

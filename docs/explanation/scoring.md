@@ -32,8 +32,8 @@ artifact is missing must produce a failure.
 Determinism is not free. A success script has to be written by hand, and it can
 only check things a script can check. You cannot assert that documentation is
 clear, well organised, or pleasant. Anything you cannot express as an exit code
-is outside what this tool measures, and [what this does not tell
-you](../index.md) stays honest about that.
+is outside what this tool measures, and the [home page](../index.md) says what a
+failure does and does not prove.
 
 The alternative buys breadth by giving up falsifiability. Once a model decides
 whether a run passed, every number depends on that model's mood, its version,

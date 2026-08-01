@@ -144,6 +144,24 @@ while Claude Opus 5 passed the same task eleven times out of eleven.
 Two models disagreeing on the same task is the normal case. See
 [pass rates](../guides/pass-rates.md).
 
+## Read the whole run back
+
+```bash
+quickstarted show results/fastapi-quickstart/trace.jsonl
+```
+
+Every page in the order the agent read it, every command with the output of the
+ones that failed, the check's own message, and the classification. `--verbose`
+adds the commands that succeeded.
+
+```bash
+quickstarted report results/ --out report.html
+```
+
+One self-contained page for the whole suite, which is the artifact you forward
+to whoever owns the documentation. It fetches no stylesheet, script or font, so
+it renders the same for them as for you.
+
 ## Fix the check without paying for another run
 
 ```bash

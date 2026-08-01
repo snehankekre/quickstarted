@@ -69,9 +69,22 @@ trace and a Markdown report:
 quickstarted run tasks/httpx.yaml --agent claude --out results/
 ```
 
-`results/httpx-quickstart/trace.jsonl` has every tool call, every page fetch
-with a content hash, every egress decision, and per-turn token usage.
-`report.md` is the same run in prose. See [Trace events](../reference/trace.md).
+`results/httpx-quickstart/trace.jsonl` has every tool call, every page read with
+a content hash, every egress decision, and per-turn token usage. `report.md` is
+the same run in prose, `results.json` is the whole suite in one document, and
+under `--repeat` every attempt is written at the same depth in
+`attempt-N/`. See [Trace events](../reference/trace.md).
+
+Two verbs read those back without any `jq`:
+
+```bash
+quickstarted show results/httpx-quickstart/trace.jsonl
+quickstarted report results/ --out report.html
+```
+
+`show` narrates one run in order. `report` turns the whole directory into a
+single self-contained page, which is the thing to forward to whoever owns the
+documentation.
 
 ## Cost
 
@@ -86,7 +99,9 @@ budgets:
 ```
 
 Token budgets need no price list and cannot drift when a vendor changes rates.
-If you want dollars, supply your own price book with `--prices`. See
+For dollars, `pip install "quickstarted[prices]"` prices runs from a package
+somebody maintains, and `--prices` takes a price book you wrote when a model is
+too new for one. `--max-spend 10` stops a sweep at a ceiling. See
 [Cost and budgets](../guides/cost.md).
 
 Next: the rules for [writing tasks](../guides/writing-tasks.md) that
