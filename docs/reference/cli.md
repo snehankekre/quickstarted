@@ -51,6 +51,41 @@ run left behind. No model, no key, no cost, and the same backend that judged the
 run. Exits 0 when the check passes. `--show` prints the script that would run,
 helper prelude included, and exits without running anything.
 
+## quickstarted diff
+
+```bash
+quickstarted diff before/results.json after/results.json [--fail-on-regression]
+```
+
+Compares two result documents and says whether the change is real:
+
+```
+  fastapi-quickstart
+      2/5 (40%)  ->  5/5 (100%)
+      inside the noise, p=0.167
+```
+
+Every comparison carries a two-sided Fisher exact test. Fisher because the
+samples are tiny and a normal approximation would lie about them; exact because
+it costs nothing but `math.comb`.
+
+When no possible outcome at these sample sizes could have reached significance,
+it says that instead of reporting a result:
+
+```
+      1/3 (33%)  ->  3/3 (100%)
+      inside the noise, and no result at 3 vs 3 runs could have cleared
+      p<0.05 (best possible p=0.100)
+```
+
+Three attempts a side can never produce a significant difference, whatever
+happens. Four can. That is worth knowing before a sweep rather than after.
+
+Two runs served by different models are reported as not comparable rather than
+subtracted, for the same reason pass rates are never aggregated across models.
+`--fail-on-regression` exits 1 when a pass rate dropped by more than noise,
+which is the CI form of the question.
+
 ## quickstarted schema
 
 ```bash

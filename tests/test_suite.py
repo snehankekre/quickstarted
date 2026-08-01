@@ -254,3 +254,84 @@ def test_suite_records_the_resolved_backend(task, monkeypatch):
     suite = run_suite([task], lambda: ReplayAgent(), backend="auto")
     assert suite.backend == resolve_backend("auto")
     assert suite.backend != "auto"
+
+
+def test_an_interrupted_sweep_keeps_the_runs_that_finished(tmp_path):
+    """A sweep is an hour of paid work; Ctrl-C used to discard all of it."""
+    import textwrap
+
+    from quickstarted.agents.base import AgentOutcome
+    from quickstarted.suite import run_suite
+    from quickstarted.task import load_task
+
+    path = tmp_path / "t.yaml"
+    path.write_text(
+        textwrap.dedent(
+            """
+            name: t
+            goal: g
+            docs:
+              entrypoint: https://example.com/
+            success:
+              script: "true"
+            replay:
+              - "true"
+            """
+        )
+    )
+    task = load_task(path)
+
+    calls = {"n": 0}
+
+    class InterruptsAfterTwo:
+        name = "replay"
+
+        def run(self, task, toolbelt, deadline):
+            calls["n"] += 1
+            if calls["n"] > 2:
+                raise KeyboardInterrupt
+            return AgentOutcome("completed", 1)
+
+    suite = run_suite(
+        [task],
+        agent_factory=InterruptsAfterTwo,
+        repeat=6,
+        backend="local",
+        http_get=lambda url, timeout=30: ("text/plain", "docs"),
+    )
+    assert suite.interrupted
+    assert len(suite.runs) == 2, "the completed runs are evidence and must survive"
+    assert suite.stats[0].passes == 2
+
+
+def test_a_completed_sweep_is_not_flagged_as_interrupted(tmp_path):
+    import textwrap
+
+    from quickstarted.agents.replay import ReplayAgent
+    from quickstarted.suite import run_suite
+    from quickstarted.task import load_task
+
+    path = tmp_path / "t.yaml"
+    path.write_text(
+        textwrap.dedent(
+            """
+            name: t
+            goal: g
+            docs:
+              entrypoint: https://example.com/
+            success:
+              script: "true"
+            replay:
+              - "true"
+            """
+        )
+    )
+    suite = run_suite(
+        [load_task(path)],
+        agent_factory=ReplayAgent,
+        repeat=2,
+        backend="local",
+        http_get=lambda url, timeout=30: ("text/plain", "docs"),
+    )
+    assert not suite.interrupted
+    assert len(suite.runs) == 2

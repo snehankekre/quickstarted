@@ -30,6 +30,8 @@ dependencies = ["PyYAML>=6.0"]
 claude = ["anthropic>=0.40"]
 openai = ["openai>=1.40"]
 gemini = ["google-genai>=1.0"]
+# Live rates, so a run reports dollars without a hand-written price book.
+prices = ["genai-prices>=0.0.72"]
 all-agents = ["anthropic>=0.40", "openai>=1.40", "google-genai>=1.0"]
 docs = [
     "mkdocs-material>=9.5",
@@ -43,6 +45,7 @@ dev = [
     "anthropic>=0.40",
     "openai>=1.40",
     "google-genai>=1.0",
+    "genai-prices>=0.0.72",
 ]
 
 [project.scripts]

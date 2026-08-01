@@ -89,10 +89,15 @@ def suite_document(suite: SuiteResult, prices: PriceBook | None = None) -> dict:
         },
         "repeat": suite.repeat,
         "duration_seconds": round(suite.duration, 2),
+        # A partial sweep is still evidence, but a reader comparing two
+        # documents needs to know that one of them stopped early.
+        "interrupted": suite.interrupted,
         "totals": {
             "runs": len(suite.runs),
             "tokens": suite.tokens(),
             "estimated_cost_usd": suite.cost(prices),
+            # Named so a consumer can tell a complete total from a partial one.
+            "unpriced_models": list(suite.unpriced_models(prices)),
         },
         "tasks": tasks,
     }

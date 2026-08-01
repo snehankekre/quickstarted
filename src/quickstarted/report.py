@@ -82,6 +82,12 @@ def console_summary(result: RunResult) -> str:
 def suite_summary(suite: SuiteResult, prices: PriceBook | None = None) -> str:
     prices = prices or PriceBook()
     lines = ["", "=" * 62, f"Suite: {len(suite.stats)} task(s), repeat={suite.repeat}"]
+    if suite.interrupted or suite.halted_on_spend:
+        why = "INTERRUPTED" if suite.interrupted else "STOPPED AT THE SPEND LIMIT"
+        lines.append(
+            f"  {why}: these are the runs that finished. Attempts that never "
+            f"started are absent, not failed."
+        )
     for stat in suite.stats:
         rate = stat.pass_rate
         shown = "no evidence" if rate is None else f"{rate:.0%}"
@@ -107,6 +113,12 @@ def suite_summary(suite: SuiteResult, prices: PriceBook | None = None) -> str:
     cost = suite.cost(prices)
     if cost is not None:
         lines.append(f"  estimated cost: ${cost:.4f}")
+    unpriced = suite.unpriced_models(prices)
+    if unpriced:
+        lines.append(
+            f"  no published price for {', '.join(unpriced)}, so their tokens "
+            f"are not in that figure"
+        )
     lines.append(f"  wall clock: {suite.duration:.1f}s")
     lines.append("=" * 62)
     return "\n".join(lines)
@@ -206,6 +218,13 @@ def markdown_suite_report(suite: SuiteResult, prices: PriceBook | None = None) -
     cost = suite.cost(prices)
     if cost is not None:
         out.append(f"Estimated cost: ${cost:.4f}")
+        out.append("")
+    unpriced = suite.unpriced_models(prices)
+    if unpriced:
+        out.append(
+            f"No published price for `{'`, `'.join(unpriced)}`, so those runs "
+            f"are excluded from that figure."
+        )
         out.append("")
     return "\n".join(out)
 

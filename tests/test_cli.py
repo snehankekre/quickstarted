@@ -320,3 +320,164 @@ def test_a_broken_watcher_cannot_kill_a_paid_run():
     trace = Trace(listener=explode)
     trace.add("docs_fetch", url="https://example.com/")
     assert trace.fetched_urls() == ["https://example.com/"]
+
+
+def test_diff_command_compares_two_result_files(tmp_path, capsys):
+    import json
+
+    def doc(passes, n):
+        return {
+            "schema_version": "2.0",
+            "tasks": [{
+                "task": "t", "agent": "claude", "passes": passes,
+                "evidential_runs": n, "pass_rate": passes / n,
+                "discarded": {}, "models_reported": [], "suspect_pages": {},
+            }],
+            "totals": {},
+        }
+
+    before, after = tmp_path / "b.json", tmp_path / "a.json"
+    before.write_text(json.dumps(doc(3, 5)))
+    after.write_text(json.dumps(doc(4, 5)))
+    assert main(["diff", str(before), str(after)]) == 0
+    out = capsys.readouterr().out
+    assert "3/5 (60%)  ->  4/5 (80%)" in out
+    assert "inside the noise" in out
+
+
+def test_diff_fails_on_a_real_regression_when_asked(tmp_path, capsys):
+    import json
+
+    def doc(passes, n):
+        return {
+            "schema_version": "2.0",
+            "tasks": [{
+                "task": "t", "agent": "claude", "passes": passes,
+                "evidential_runs": n, "pass_rate": passes / n,
+                "discarded": {}, "models_reported": [], "suspect_pages": {},
+            }],
+            "totals": {},
+        }
+
+    before, after = tmp_path / "b.json", tmp_path / "a.json"
+    before.write_text(json.dumps(doc(10, 10)))
+    after.write_text(json.dumps(doc(0, 10)))
+    assert main(["diff", str(before), str(after), "--fail-on-regression"]) == 1
+    assert "regression" in capsys.readouterr().err
+
+
+def test_diff_reports_a_missing_file_clearly(tmp_path, capsys):
+    assert main(["diff", str(tmp_path / "nope.json"), str(tmp_path / "also.json")]) == 3
+    assert "no such file" in capsys.readouterr().err
+
+
+def test_an_interrupted_run_still_writes_its_results(tmp_path, capsys, monkeypatch):
+    """The payoff: a killed sweep keeps the evidence it already paid for."""
+    import quickstarted.cli as cli_module
+    from quickstarted.suite import SuiteResult
+
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    out_dir = tmp_path / "results"
+
+    monkeypatch.setattr(
+        cli_module,
+        "run_suite",
+        lambda *a, **k: SuiteResult(stats=[], duration=1.0, repeat=3,
+                                    backend="local", interrupted=True),
+    )
+    code = main(
+        ["run", str(path), "--agent", "replay", "--backend", "local",
+         "--allow-unenforced", "--out", str(out_dir)]
+    )
+    assert code == 130, "SIGINT is not the same outcome as a failing task"
+    assert (out_dir / "results.json").is_file()
+    import json
+
+    assert json.loads((out_dir / "results.json").read_text())["interrupted"] is True
+    assert "INTERRUPTED" in capsys.readouterr().out
+
+
+def test_max_spend_stops_the_sweep_and_keeps_what_it_bought(tmp_path, capsys, monkeypatch):
+    """A ceiling has to be enforced between runs: a run's cost is only known after."""
+    import quickstarted.transport as transport
+    from quickstarted.pricing import PriceBook
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    # Every run "costs" $1, so a $2 ceiling must stop after two of five.
+    # Patching the loader, not the class: with genai-prices installed the CLI
+    # gets a LivePriceBook, whose estimate() would shadow a patched base class.
+    class DollarEach(PriceBook):
+        def __bool__(self):
+            return True
+
+        def estimate(self, model, outcome):
+            return 1.0
+
+    monkeypatch.setattr(PriceBook, "load", classmethod(lambda cls, path=None: DollarEach()))
+
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    out_dir = tmp_path / "results"
+    code = main(
+        ["run", str(path), "--agent", "replay", "--backend", "local",
+         "--allow-unenforced", "--repeat", "5", "--max-spend", "2",
+         "--out", str(out_dir), "--quiet"]
+    )
+    assert code == 130
+    captured = capsys.readouterr()
+    assert "stopped at --max-spend" in captured.err
+    assert "STOPPED AT THE SPEND LIMIT" in captured.out
+
+    import json
+
+    document = json.loads((out_dir / "results.json").read_text())
+    assert document["tasks"][0]["attempts"] == 2, "should stop after the ceiling"
+
+
+def test_unpriced_models_are_named_rather_than_silently_dropped(tmp_path, capsys, monkeypatch):
+    """A total missing one model of two is a quietly wrong number."""
+    import quickstarted.transport as transport
+    from quickstarted.pricing import PriceBook
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    class KnowsNothing(PriceBook):
+        def __bool__(self):
+            return True
+
+        def estimate(self, model, outcome):
+            return None
+
+    monkeypatch.setattr(PriceBook, "load", classmethod(lambda cls, path=None: KnowsNothing()))
+
+    path = tmp_path / "j.yaml"
+    path.write_text(TASK)
+    # The replay agent reports no tokens, so give it some to price.
+    import quickstarted.agents.replay as replay_module
+    from quickstarted.agents.base import AgentOutcome
+
+    original = replay_module.ReplayAgent.run
+    monkeypatch.setattr(
+        replay_module.ReplayAgent,
+        "run",
+        lambda self, task, toolbelt, deadline: AgentOutcome(
+            **{**original(self, task, toolbelt, deadline).__dict__, "output_tokens": 100}
+        ),
+    )
+    assert main(
+        ["run", str(path), "--agent", "replay", "--backend", "local",
+         "--allow-unenforced", "--quiet"]
+    ) == 0
+    assert "no published price for" in capsys.readouterr().out

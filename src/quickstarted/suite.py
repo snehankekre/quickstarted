@@ -108,6 +108,13 @@ class SuiteResult:
     duration: float = 0.0
     repeat: int = 1
     backend: str = ""
+    #: True when the sweep was interrupted. The runs that did finish are still
+    #: evidence and are still reported; the ones that never started are simply
+    #: absent, which is why this flag has to travel with the numbers.
+    interrupted: bool = False
+    #: True when `--max-spend` stopped it. Same reasoning: a document with
+    #: fewer runs than were asked for has to say why.
+    halted_on_spend: bool = False
 
     @property
     def runs(self) -> list[RunResult]:
@@ -135,6 +142,24 @@ class SuiteResult:
         real = [e for e in estimates if e is not None]
         return sum(real) if real else None
 
+    def unpriced_models(self, prices: PriceBook) -> tuple[str, ...]:
+        """Models whose spend is missing from `cost`.
+
+        A total that silently omits one model of a two-model sweep is the kind
+        of quietly wrong number this project exists to avoid, so whoever reads
+        the figure gets told what is not in it.
+        """
+        if not prices:
+            return ()
+        missing = set()
+        for run in self.runs:
+            if not run.outcome.total_tokens:
+                continue
+            model = run.model_reported or run.agent_name
+            if prices.estimate(model, run.outcome) is None:
+                missing.add(model)
+        return tuple(sorted(missing))
+
 
 def run_suite(
     tasks: Sequence[Task],
@@ -149,6 +174,7 @@ def run_suite(
     probe_affordances: bool = False,
     on_result: Callable[[RunResult], None] | None = None,
     on_event: Callable[[str, int, object], None] | None = None,
+    stop_check: Callable[[], bool] | None = None,
 ) -> SuiteResult:
     start = time.monotonic()
     jobs = [
@@ -176,19 +202,51 @@ def run_suite(
             ),
         )
 
+    # A sweep of fifty projects is an hour of paid work. Interrupting it used to
+    # discard every run that had already finished, because the results document
+    # was only assembled once the last one landed. The runs that completed are
+    # evidence whether or not the rest ever ran.
     results: list[RunResult] = []
-    if workers > 1 and len(jobs) > 1:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            for result in pool.map(execute, jobs):
+    interrupted = False
+    halted = False
+    try:
+        if workers > 1 and len(jobs) > 1:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = []
+                for job in jobs:
+                    if stop_check is not None and stop_check():
+                        halted = True
+                        break
+                    futures.append(pool.submit(execute, job))
+                try:
+                    for future in futures:
+                        result = future.result()
+                        results.append(result)
+                        if on_result:
+                            on_result(result)
+                except KeyboardInterrupt:
+                    interrupted = True
+                    # Drop what has not started. Runs already in flight are left
+                    # to finish, because their cleanup is what removes the
+                    # container and the sandbox; a second interrupt abandons
+                    # them and leaks both.
+                    pool.shutdown(wait=True, cancel_futures=True)
+                    for future in futures:
+                        if future.done() and not future.cancelled():
+                            done = future.result()
+                            if done not in results:
+                                results.append(done)
+        else:
+            for job in jobs:
+                if stop_check is not None and stop_check():
+                    halted = True
+                    break
+                result = execute(job)
                 results.append(result)
                 if on_result:
                     on_result(result)
-    else:
-        for job in jobs:
-            result = execute(job)
-            results.append(result)
-            if on_result:
-                on_result(result)
+    except KeyboardInterrupt:
+        interrupted = True
 
     by_task: dict[str, TaskStats] = {}
     order: list[str] = []
@@ -206,4 +264,6 @@ def run_suite(
         # The resolved backend. "auto" in a published result
         # tells a reader nothing about what was enforced.
         backend=resolve_backend(backend),
+        interrupted=interrupted,
+        halted_on_spend=halted,
     )

@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 from . import examples
 from .agents.registry import AGENTS, build_agent
 from .config import ConfigError, load_config
+from .diff import DiffError, compare, format_diff, load_results
 from .docs import AFFORDANCE_POLICIES, DocsClient
 from .exec import (
     ExecutorError,
@@ -35,7 +36,7 @@ from .exec import (
     resolve_backend,
 )
 from .net.proxy import EgressProxy
-from .pricing import PriceBook
+from .pricing import PriceBook, refresh_live_prices
 from .report import console_summary, markdown_report, markdown_suite_report, suite_summary
 from .results import write_json, write_junit
 from .run import EVIDENTIAL
@@ -483,6 +484,23 @@ def _make_watcher(verbose: bool, show_task: bool):
     return watch
 
 
+def cmd_diff(args) -> int:
+    """Did the documentation change move the pass rate, or is that noise?"""
+    try:
+        before = load_results(args.before)
+        after = load_results(args.after)
+    except DiffError as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    delta = compare(before, after)
+    print(format_diff(delta))
+    if args.fail_on_regression and delta.regressions:
+        names = ", ".join(d.task for d in delta.regressions)
+        print(f"regression: {names}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_examples(args) -> int:
     """List the tasks that ship with the package."""
     print("Example tasks, runnable without cloning anything:")
@@ -529,10 +547,20 @@ def cmd_run(args) -> int:
         )
         return 1
 
+    if getattr(args, "refresh_prices", False):
+        refresh_live_prices()
     prices = PriceBook.load(args.prices)
     out_root = Path(args.out) if args.out else None
 
+    # Running total, so a ceiling can be enforced between runs. Checking after
+    # each one rather than predicting the next is the only honest option: what a
+    # run costs is not knowable until it has happened.
+    spent = [0.0]
+
     def emit(result) -> None:
+        estimate = prices.estimate(result.model_reported or result.agent_name, result.outcome)
+        if estimate:
+            spent[0] += estimate
         print(console_summary(result))
         if args.keep_sandbox:
             print(f"  sandbox kept at: {result.sandbox_path}")
@@ -571,6 +599,9 @@ def cmd_run(args) -> int:
             if args.quiet
             else _make_watcher(args.verbose, show_task=args.workers > 1 or len(tasks) > 1)
         ),
+        stop_check=(
+            (lambda: spent[0] >= args.max_spend) if args.max_spend > 0 else None
+        ),
     )
 
     print(suite_summary(suite, prices))
@@ -587,6 +618,17 @@ def cmd_run(args) -> int:
     elif args.junit:
         write_junit(suite, args.junit)
 
+    if suite.halted_on_spend:
+        print(
+            f"stopped at --max-spend ${args.max_spend:.2f}; "
+            f"${spent[0]:.4f} spent over {len(suite.runs)} run(s)",
+            file=sys.stderr,
+        )
+        return 130
+    if suite.interrupted:
+        # Conventional for SIGINT, and distinct from "a task failed" so a
+        # wrapper script can tell an abandoned sweep from a red one.
+        return 130
     if invalid:
         return 1
     inconclusive = [r for r in suite.runs if r.classification not in EVIDENTIAL]
@@ -644,6 +686,18 @@ def main(argv=None) -> int:
     p_examples.set_defaults(func=cmd_examples)
     subparsers["examples"] = p_examples
 
+    p_diff = sub.add_parser(
+        "diff", help="compare two results.json files and say whether the change is real"
+    )
+    p_diff.add_argument("before")
+    p_diff.add_argument("after")
+    p_diff.add_argument(
+        "--fail-on-regression", action="store_true",
+        help="exit 1 when a pass rate dropped by more than noise",
+    )
+    p_diff.set_defaults(func=cmd_diff)
+    subparsers["diff"] = p_diff
+
     p_check = sub.add_parser(
         "check",
         help="re-run only the success script against a kept sandbox (no model, no cost)",
@@ -676,6 +730,14 @@ def main(argv=None) -> int:
     p_run.add_argument("--out", default="", help="directory for traces and reports")
     p_run.add_argument("--junit", default="", help="write JUnit XML to this path")
     p_run.add_argument("--prices", default="", help="path to a price book JSON file")
+    p_run.add_argument(
+        "--refresh-prices", action="store_true",
+        help="fetch current rates before pricing, for models newer than the bundled data",
+    )
+    p_run.add_argument(
+        "--max-spend", type=float, default=0.0,
+        help="stop the sweep once the estimated cost reaches this many dollars",
+    )
     p_run.add_argument(
         "--repeat", type=int, default=1,
         help="attempts per task; >1 turns a verdict into a pass rate",
