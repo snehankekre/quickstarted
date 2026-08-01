@@ -34,6 +34,10 @@ principle holds because the rates live in a package somebody updates, not in a
 table in this repository that would rot quietly. A price book you supply always
 wins.
 
+genai-prices requires Python 3.10, while quickstarted supports 3.9. On 3.9 the
+extra installs nothing and a price book is the only route to dollars. Token
+counts are unaffected.
+
 [gp]: https://github.com/pydantic/genai-prices
 
 ## When a model has no published price
