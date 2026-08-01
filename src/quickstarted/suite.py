@@ -25,7 +25,7 @@ from typing import Callable
 from .agents.base import Agent
 from .exec import resolve_backend
 from .pricing import PriceBook
-from .run import EVIDENTIAL, PASSED, RunResult, run_task
+from .run import EVIDENTIAL, PASSED, SKIPPED, RunResult, run_task
 from .task import Task
 
 
@@ -56,10 +56,20 @@ class TaskStats:
         return self.passes / len(usable)
 
     @property
+    def skipped(self) -> int:
+        """Runs that were never in scope, as opposed to runs that went wrong."""
+        return len([r for r in self.runs if r.classification == SKIPPED])
+
+    @property
     def discarded(self) -> dict[str, int]:
+        """Runs that should have produced evidence and did not.
+
+        Skips are excluded deliberately. Listing "nothing to run here" beside a
+        rate limit and a harness bug invites reading all three as damage.
+        """
         counts: dict[str, int] = {}
         for run in self.runs:
-            if run.classification not in EVIDENTIAL:
+            if run.classification not in EVIDENTIAL and run.classification != SKIPPED:
                 counts[run.classification] = counts.get(run.classification, 0) + 1
         return counts
 
@@ -124,9 +134,20 @@ class SuiteResult:
     def all_passed(self) -> bool:
         """CI gate: every task passed every attempt that produced evidence."""
         for stat in self.stats:
+            if stat.skipped and not stat.evidential:
+                continue  # nothing was asked of this task in this mode
             if stat.pass_rate is None or stat.pass_rate < 1.0:
                 return False
         return bool(self.stats)
+
+    @property
+    def evidential_runs(self) -> list[RunResult]:
+        return [r for r in self.runs if r.evidential]
+
+    @property
+    def all_skipped(self) -> bool:
+        """Every task was out of scope for the mode it was run in."""
+        return bool(self.runs) and all(r.classification == SKIPPED for r in self.runs)
 
     def tokens(self) -> dict[str, int]:
         totals = {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0}

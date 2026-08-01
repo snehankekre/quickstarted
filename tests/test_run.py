@@ -193,7 +193,12 @@ def test_replay_requires_replay_commands(tmp_path):
     path.write_text(text)
     task = load_task(path)
     result = run_task(task, ReplayAgent(), http_get=fake_http_get, backend="local")
-    assert result.outcome.stop_reason == "error"
+    # An agent-only task is out of scope for replay mode, not broken by it. It
+    # used to classify as a harness error, so a suite of them reported "no
+    # evidence" on every push, which reads like something is wrong.
+    assert result.outcome.stop_reason == "skipped"
+    assert result.classification == "skipped"
+    assert not result.evidential
     assert "replay" in result.outcome.detail
 
 

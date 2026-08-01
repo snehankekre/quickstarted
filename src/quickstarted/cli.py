@@ -5,10 +5,17 @@
     quickstarted run tasks/*.yaml --agent claude --repeat 5 --out results/
     quickstarted doctor
 
-Exit code 0 when every task passed every evidential attempt, 1 otherwise,
-so CI can gate on it. Runs that produced no evidence (rate limits, budget
-exhaustion, harness bugs) do not silently turn into failures; use
-`--strict-inconclusive` if you would rather they did.
+Exit codes are meant to be branched on, because "your quickstart is broken" and
+"somebody else's API returned 429" need different people to do different things:
+
+    0    every task passed every attempt that produced evidence
+    1    a documentation gap: a run finished and the check failed
+    2    no evidence at all, from rate limits, budgets, or nothing to run
+    3    usage: no tasks found, an invalid task file, a refused backend
+    130  interrupted, or stopped at --max-spend
+
+`--strict-inconclusive` collapses 2 into 1 for anyone who would rather a job go
+red whenever a run failed to produce evidence.
 """
 
 from __future__ import annotations
@@ -39,7 +46,7 @@ from .net.proxy import EgressProxy
 from .pricing import PriceBook, refresh_live_prices
 from .report import console_summary, markdown_report, markdown_suite_report, suite_summary
 from .results import write_json, write_junit
-from .run import EVIDENTIAL
+from .run import DOCS_GAP, EVIDENTIAL, SKIPPED
 from .schema import SCHEMA_LINE, TASK_SCHEMA
 from .suite import run_suite
 from .task import TaskError, load_task
@@ -171,8 +178,7 @@ def cmd_validate(args) -> int:
             if not task.replay:
                 print(
                     f"note     {task.name} has no 'replay' commands, so "
-                    f"`--agent replay` reports it as inconclusive rather than "
-                    f"running it."
+                    f"`--agent replay` skips it."
                 )
             if docs:
                 _check_entrypoint(task, docs)
@@ -484,6 +490,43 @@ def _make_watcher(verbose: bool, show_task: bool):
     return watch
 
 
+def _github_annotations(suite) -> None:
+    """One annotation per failing task, anchored to the file that defines it.
+
+    GitHub renders these beside the diff, so a docs gap shows up where somebody
+    is already looking rather than inside a log nobody opens.
+    """
+    for stat in suite.stats:
+        failing = [
+            run for run in stat.runs
+            if run.classification == DOCS_GAP and run.suspect_page
+        ]
+        if not failing:
+            continue
+        run = failing[0]
+        source = run.task.source or f"tasks/{stat.task}.yaml"
+        rate = stat.pass_rate
+        shown = "no evidence" if rate is None else f"{rate:.0%}"
+        reason = (run.score.output or "").strip().splitlines()
+        detail = reason[-1] if reason else "the check failed and printed nothing"
+        # Newlines have to be escaped or the workflow command ends at the first.
+        message = (
+            f"pass rate {shown} for {stat.task}. {detail}%0A"
+            f"Last documentation page read before failing: {run.suspect_page}"
+        )
+        print(f"::error file={source},title=quickstarted::{message}")
+
+
+def _write_github_summary(suite, prices) -> bool:
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path:
+        return False
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(markdown_suite_report(suite, prices))
+        handle.write("\n")
+    return True
+
+
 def cmd_diff(args) -> int:
     """Did the documentation change move the pass rate, or is that noise?"""
     try:
@@ -534,7 +577,7 @@ def cmd_run(args) -> int:
             print(f"INVALID  {exc}")
             invalid = True
     if not tasks:
-        return 1
+        return 3
 
     backend = resolve_backend(args.backend)
     if backend == "local" and not args.allow_unenforced:
@@ -545,7 +588,7 @@ def cmd_run(args) -> int:
             "you wrote the tasks and the project under test yourself.",
             file=sys.stderr,
         )
-        return 1
+        return 3
 
     if getattr(args, "refresh_prices", False):
         refresh_live_prices()
@@ -606,6 +649,18 @@ def cmd_run(args) -> int:
 
     print(suite_summary(suite, prices))
 
+    if args.github_summary and not _write_github_summary(suite, prices):
+        print(
+            "warning  --github-summary was given but GITHUB_STEP_SUMMARY is "
+            "not set, so there is nowhere to write it",
+            file=sys.stderr,
+        )
+    # Annotations are free outside a workflow too, but printing workflow
+    # commands into somebody's terminal is noise, so they are gated on the
+    # variable GitHub always sets.
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        _github_annotations(suite)
+
     if out_root:
         out_root.mkdir(parents=True, exist_ok=True)
         write_json(suite, out_root / "results.json", prices)
@@ -630,10 +685,25 @@ def cmd_run(args) -> int:
         # wrapper script can tell an abandoned sweep from a red one.
         return 130
     if invalid:
-        return 1
-    inconclusive = [r for r in suite.runs if r.classification not in EVIDENTIAL]
+        return 3
+    inconclusive = [
+        r for r in suite.runs
+        if r.classification not in EVIDENTIAL and r.classification != SKIPPED
+    ]
     if inconclusive and args.strict_inconclusive:
         return 1
+    if suite.all_skipped:
+        print(
+            "nothing ran: every task was skipped. Agent-only tasks have no "
+            "`replay` commands; use --agent claude, or add them.",
+            file=sys.stderr,
+        )
+        return 2
+    if not suite.evidential_runs:
+        # A sweep that hit nothing but rate limits says nothing about the
+        # documentation. Reporting it as a documentation failure is the lie
+        # that is easiest to tell, and it pages the wrong team.
+        return 2
     return 0 if suite.all_passed else 1
 
 
@@ -755,6 +825,10 @@ def main(argv=None) -> int:
     p_run.add_argument(
         "--allow-unenforced", action="store_true",
         help="permit the local backend, whose network policy is advisory only",
+    )
+    p_run.add_argument(
+        "--github-summary", action="store_true",
+        help="append the markdown report to $GITHUB_STEP_SUMMARY",
     )
     p_run.add_argument(
         "--strict-inconclusive", action="store_true",

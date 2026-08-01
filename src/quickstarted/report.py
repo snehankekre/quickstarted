@@ -8,7 +8,7 @@ to do different things.
 from __future__ import annotations
 
 from .pricing import PriceBook
-from .run import DOCS_GAP, PASSED, RunResult
+from .run import DOCS_GAP, PASSED, SKIPPED, RunResult
 from .suite import SuiteResult, TaskStats
 
 _LABELS = {
@@ -18,6 +18,7 @@ _LABELS = {
     "infra_error": "INCONCLUSIVE",
     "harness_error": "INCONCLUSIVE",
     "agent_refusal": "INCONCLUSIVE",
+    SKIPPED: "SKIP",
 }
 
 
@@ -90,6 +91,11 @@ def suite_summary(suite: SuiteResult, prices: PriceBook | None = None) -> str:
         )
     for stat in suite.stats:
         rate = stat.pass_rate
+        if stat.skipped and not stat.evidential:
+            lines.append(
+                f"  {stat.task} ({stat.agent}): skipped, no replay commands"
+            )
+            continue
         shown = "no evidence" if rate is None else f"{rate:.0%}"
         lines.append(
             f"  {stat.task} ({stat.agent}): pass rate {shown} "

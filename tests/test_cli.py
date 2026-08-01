@@ -81,7 +81,7 @@ def test_run_refuses_an_unenforced_backend_by_default(tmp_path, capsys):
     path = tmp_path / "j.yaml"
     path.write_text(TASK)
     code = main(["run", str(path), "--agent", "replay", "--backend", "local"])
-    assert code == 1
+    assert code == 3, "a refused backend is a usage error, not a documentation gap"
     assert "REFUSING" in capsys.readouterr().err
 
 
@@ -481,3 +481,108 @@ def test_unpriced_models_are_named_rather_than_silently_dropped(tmp_path, capsys
          "--allow-unenforced", "--quiet"]
     ) == 0
     assert "no published price for" in capsys.readouterr().out
+
+
+AGENT_ONLY = textwrap.dedent(
+    """
+    name: agent-only
+    goal: do a thing
+    docs:
+      entrypoint: https://example.com/docs/
+    success:
+      script: test -f never-created.txt
+    """
+)
+
+
+def test_an_agent_only_task_is_skipped_by_replay_not_failed(tmp_path, capsys, monkeypatch):
+    """A suite of these used to report 'no evidence' on every push."""
+    import quickstarted.transport as transport
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    path = tmp_path / "j.yaml"
+    path.write_text(AGENT_ONLY)
+    code = main(
+        ["run", str(path), "--agent", "replay", "--backend", "local",
+         "--allow-unenforced"]
+    )
+    captured = capsys.readouterr()
+    assert code == 2, "nothing ran, which is not the same as something failed"
+    assert "skipped, no replay commands" in captured.out
+    assert "nothing ran" in captured.err
+
+
+def test_a_skipped_run_is_never_scored(tmp_path, capsys, monkeypatch):
+    """Its check would otherwise run in an empty workspace and might pass."""
+    import quickstarted.transport as transport
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    path = tmp_path / "j.yaml"
+    # A check that passes in an empty workspace, so scoring a skip would say PASS.
+    path.write_text(AGENT_ONLY.replace("test -f never-created.txt", '"true"'))
+    out_dir = tmp_path / "results"
+    main(
+        ["run", str(path), "--agent", "replay", "--backend", "local",
+         "--allow-unenforced", "--out", str(out_dir)]
+    )
+    import json
+
+    document = json.loads((out_dir / "results.json").read_text())
+    run = document["tasks"][0]["runs"][0]
+    assert run["classification"] == "skipped"
+    assert run["passed"] is False
+    assert run["success_check"] is None
+
+
+def test_a_skip_is_junit_skipped_not_an_error(tmp_path, monkeypatch):
+    import quickstarted.transport as transport
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    path = tmp_path / "j.yaml"
+    path.write_text(AGENT_ONLY)
+    junit = tmp_path / "junit.xml"
+    main(
+        ["run", str(path), "--agent", "replay", "--backend", "local",
+         "--allow-unenforced", "--junit", str(junit)]
+    )
+    body = junit.read_text()
+    assert "<skipped" in body
+    assert 'errors="0"' in body
+
+
+def test_a_mixed_suite_still_passes_on_the_task_that_ran(tmp_path, capsys, monkeypatch):
+    import quickstarted.transport as transport
+
+    monkeypatch.setattr(
+        transport,
+        "http_get",
+        lambda url, timeout=30, method="GET": transport.HttpResponse(
+            200, "text/plain", "docs"
+        ),
+    )
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tasks").mkdir()
+    (tmp_path / "tasks" / "a.yaml").write_text(AGENT_ONLY)
+    (tmp_path / "tasks" / "b.yaml").write_text(TASK)
+    assert main(["run", "--agent", "replay", "--backend", "local", "--allow-unenforced"]) == 0
+    out = capsys.readouterr().out
+    assert "skipped, no replay commands" in out
+    assert "pass rate 100%" in out
