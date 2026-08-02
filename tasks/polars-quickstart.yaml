@@ -1,28 +1,40 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: polars-quickstart
 goal: >
-  Using Polars, read the CSV file people.csv that already exists in this
-  workspace, keep only the rows where age is greater than 30, sort the result
-  by age descending, and write it to out.csv with the same column names. Put
-  your code in script.py and run it.
+  Following the Polars getting started guide, install Polars and work through
+  its reading and writing example: build the dataframe of four people the guide
+  builds, write it to a CSV file called output.csv in this workspace, read it
+  back, and print what you read.
 docs:
-  entrypoint: https://docs.pola.rs/user-guide/getting-started/
+  # The guide's own example data. Inventing a different CSV here would test a
+  # data-wrangling exercise rather than the page.
+  path:
+    - https://docs.pola.rs/user-guide/getting-started/
   allow:
     - docs.pola.rs
 setup:
   - python3 -m venv .venv
-  - printf 'name,age\nada,36\ngrace,45\nalan,28\nedsger,31\n' > people.csv
 success:
+  # The guide ends at `print(df_csv)`, so this is the promise being kept.
+  expect_output:
+    contains:
+      - Alice Archer
+      - Daniel Donovan
   script: |
     set -e
-    test -f script.py || qs_fail "no script.py, so the quickstart produced no program"
-    test -f out.csv || qs_fail "no out.csv, so nothing was ever written out"
-    # Assert the data, not the code: any correct route to the answer passes.
+    test -f output.csv \
+      || qs_fail "no output.csv, so the dataframe was never written to disk"
+    # Assert the data, not the code: any correct route to it passes.
     .venv/bin/python - <<'PY'
     import csv
-    with open("out.csv") as fh:
+    with open("output.csv") as fh:
         rows = list(csv.DictReader(fh))
-    assert [r["name"] for r in rows] == ["grace", "ada", "edsger"], rows
-    assert [int(r["age"]) for r in rows] == [45, 36, 31], rows
+    names = [r["name"] for r in rows]
+    assert names == [
+        "Alice Archer", "Ben Brown", "Chloe Cooper", "Daniel Donovan"
+    ], names
+    weights = [float(r["weight"]) for r in rows]
+    assert weights == [57.9, 72.5, 53.6, 83.1], weights
     PY
 budgets:
   max_turns: 20
@@ -30,11 +42,26 @@ budgets:
 replay:
   - .venv/bin/pip install --quiet polars
   - |
-    cat > script.py <<'PY'
+    cat > example.py <<'PY'
     import polars as pl
+    import datetime as dt
 
-    df = pl.read_csv("people.csv")
-    out = df.filter(pl.col("age") > 30).sort("age", descending=True)
-    out.write_csv("out.csv")
+    df = pl.DataFrame(
+        {
+            "name": ["Alice Archer", "Ben Brown", "Chloe Cooper", "Daniel Donovan"],
+            "birthdate": [
+                dt.date(1997, 1, 10),
+                dt.date(1985, 2, 15),
+                dt.date(1983, 3, 22),
+                dt.date(1981, 4, 30),
+            ],
+            "weight": [57.9, 72.5, 53.6, 83.1],  # (kg)
+            "height": [1.56, 1.77, 1.65, 1.75],  # (m)
+        }
+    )
+
+    df.write_csv("output.csv")
+    df_csv = pl.read_csv("output.csv", try_parse_dates=True)
+    print(df_csv)
     PY
-  - .venv/bin/python script.py
+  - .venv/bin/python example.py

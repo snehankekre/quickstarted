@@ -27,7 +27,11 @@ class ReplayAgent:
                 turns=0,
                 detail="task has no 'replay' commands",
             )
-        toolbelt.read_docs(task.docs_entrypoint)
+        # Read the whole documented route, not just its first page. Replay is
+        # the record of what the documentation says to type, so the trace should
+        # name every page those commands were taken from.
+        for page in task.docs_path:
+            toolbelt.read_docs(page)
         for i, command in enumerate(task.replay, start=1):
             if time.monotonic() > deadline:
                 return AgentOutcome(stop_reason="timeout", turns=i - 1)

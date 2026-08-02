@@ -8,6 +8,46 @@ verdict. LLM judges may eventually classify WHY a run failed; they will never
 decide WHETHER it failed. This keeps the tool falsifiable and keeps vendors
 (including Anthropic) out of the scoring path.
 
+## A task may name nothing its target documentation does not name
+
+The point of the tool is to ask whether a project's own quickstart works. A
+task that invents a filename is asking a different question, and answering it
+confidently.
+
+This was violated by every task in this repository, and the cause was
+structural rather than careless. The success check could only observe the
+filesystem after the run, so the goal got written backwards from what the check
+could see. Most quickstarts do not end at a file. DuckDB's persistent storage
+example prints a table, Polars' getting started guide ends at `print(df_csv)`,
+Prisma's SQLite quickstart ends at two `console.log` calls. To assert anything,
+the author bolted an artefact onto the goal: `total.txt`, `out.csv`,
+`out.json`, `fetch.py`. FastAPI's tutorial says "copy that to a file
+`main.py`"; the task demanded `app.py`. A reader who followed the page exactly
+would have failed.
+
+`success.expect_output` removes the pressure by making the terminal assertable.
+It reads the recorded session output, which a determined agent could satisfy
+with `echo`. That is not a new weakness: a check that greps a file the agent
+wrote has always had it. The discipline is unchanged, and it is to assert
+durable state as well wherever the documentation produces any.
+
+## A quickstart is a route, not a page
+
+`docs.entrypoint` was a single URL, which quietly assumed the thing being
+tested fits on one page. It usually does not. FastAPI's install instruction is
+on `/tutorial/` and its first application is on `/tutorial/first-steps/`.
+
+The 0.3.0 benchmark shows what that costs. GPT-5.2 failed FastAPI three times
+out of three and passed it five times out of five on the same day, with the
+same model and the same task. The only difference was which pages got read: the
+failures read `first-steps` alone, which carries no install instruction, and
+the passes also read the index. The harness recorded a `docs_gap` against a
+page that is missing nothing.
+
+So `docs.path` is an ordered list, and every page on it is offered to the
+agent. Where a reader starts is a variable worth controlling deliberately
+rather than one to leave to whichever URL the task author happened to paste.
+
 ## Every page read goes through a tool the agent cannot bypass
 
 Agents act only through the Toolbelt (`bash` + `read_docs`), so every page read
@@ -77,7 +117,7 @@ product.
 
 Everything interesting is an event in the JSONL trace: setup, tool calls, docs
 fetches with content hashes, egress decisions, agent turns with token usage,
-retries, the success check. `results.json` (schema 1.0) is the stable contract
+retries, the success check. `results.json` (schema 2.0) is the stable contract
 over those traces. The hosted product is, to a first approximation, storage
 plus diffing plus alerting across models and time.
 
@@ -95,8 +135,17 @@ would quietly misreport what a sweep costs.
   container the isolation is stronger than Seatbelt's: a direct dial to an IP
   address fails with `Network is unreachable`. The sandbox network has no route
   out at all, so the isolation does not depend on name resolution.
-- HTML-to-text is a crude tag stripper, so markdown-native docs read better.
-  That is itself a finding worth publishing.
+- HTML-to-text is a tag stripper, so markdown-native docs still read better.
+  That is itself a finding worth publishing, but only once the stripper is not
+  the thing producing the finding. It used to join text nodes with no
+  separator, which turned tabbed install blocks into
+  `npm create vite@latestbash$ yarn create vite` and Tailwind's install page
+  into `npm create vite@latest my-projectcd my-project`. Six of the eleven
+  sites tested here were affected. Anything measured before 0.6.0 is partly a
+  measurement of this bug.
+- `expect_output` trusts the run's own transcript. It is deterministic and no
+  model sees it, but it cannot distinguish a computed value from an echoed one.
+  Assert durable state alongside it when the documentation leaves any.
 - Concurrency is per-attempt threads. Hosts are rate-limited individually, and
   there is no global budget governor.
 - No pip/npm cache; every run cold-installs.

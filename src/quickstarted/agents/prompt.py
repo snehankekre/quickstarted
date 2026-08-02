@@ -18,8 +18,8 @@ Rules of the exercise:
 read via the read_docs tool. Do not rely on prior knowledge of this specific \
 project; the point is to test whether the docs alone get a newcomer to the \
 goal. General programming knowledge is fine.
-- Start by reading the documentation entrypoint, then follow links from it \
-with read_docs when you need more.
+- Start by reading the documentation pages you are given, in the order they \
+are listed, then follow links from them with read_docs when you need more.
 - Use the bash tool to run commands in the workspace. Each command runs in a \
 fresh shell in the workspace directory; state persists only on disk (use \
 files, virtualenvs, etc.).
@@ -47,9 +47,18 @@ BASH_DESCRIPTION = (
 
 
 def kickoff(task: Task) -> str:
+    if len(task.docs_path) == 1:
+        route = f"Documentation entrypoint: {task.docs_entrypoint}\n"
+    else:
+        # Named in order, because the order is the documentation's own. A
+        # reader who lands on FastAPI's first-steps page without passing
+        # through the tutorial index never sees an install command.
+        route = "Documentation, in the order the project presents it:\n" + "".join(
+            f"  {i}. {page}\n" for i, page in enumerate(task.docs_path, 1)
+        )
     text = (
         f"Goal: {task.goal}\n\n"
-        f"Documentation entrypoint: {task.docs_entrypoint}\n"
+        f"{route}"
         f"Allowed documentation hosts: {', '.join(task.docs_allow)}"
     )
     if task.setup:

@@ -53,7 +53,7 @@ the sandbox refused and the check's exit code:
   [   24s] check exited 0
 ```
 
-That exists because a run used to print nothing at all until it finished, and
+Without it a run prints nothing at all until it finishes, and
 under `--repeat 5 --workers 3` that is minutes of silence while spending money,
 during which a slow model and a hung container look identical. `--verbose` adds
 every shell command the agent runs, `--quiet` turns the stream off, and lines

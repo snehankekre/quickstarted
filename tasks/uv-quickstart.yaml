@@ -1,46 +1,57 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: uv-quickstart
 goal: >
-  Using uv, turn this empty workspace into a Python project, add httpx as a
-  dependency of that project, and write main.py which imports httpx and prints
-  the single line "ok". Run main.py through uv. uv is not installed yet; install
-  it first, from PyPI: this sandbox cannot reach the standalone installer script.
-  Do not create a virtualenv by hand.
+  Following uv's documentation, install uv, create the example project its
+  project guide creates, run that project so it prints the greeting the guide
+  shows, and then add the dependency the guide adds. uv's standalone installer
+  script is not reachable from this sandbox, so use one of the other installation
+  methods the documentation lists.
 docs:
-  entrypoint: https://docs.astral.sh/uv/getting-started/
+  # Installation first, then the project guide, which is the order the
+  # documentation itself puts them in. The old entrypoint,
+  # /uv/getting-started/, is a hub page: four links and no commands.
+  path:
+    - https://docs.astral.sh/uv/getting-started/installation/
+    - https://docs.astral.sh/uv/guides/projects/
   allow:
     - docs.astral.sh
 # `astral.sh` is deliberately absent from network.allow. Allowing it would also
-# allow `docs.astral.sh` (the match is by suffix), and the shell being able to
-# reach a docs host is exactly the hole that makes page attribution unprovable.
-# So the installer script is out of reach and the goal says to use PyPI.
+# allow `docs.astral.sh` (the match is by suffix), and a shell that can reach a
+# documentation host is the hole that makes page attribution unprovable. The
+# documentation lists pip and pipx alongside the installer, so a reader in this
+# position still has a documented route, which is what the goal points at.
 success:
+  # `uv run hello-world` printing this line is the guide's own promise.
+  expect_output:
+    contains: Hello from hello-world!
   script: |
     set -e
-    fail() { echo "check failed: $1"; exit 1; }
-    test -f pyproject.toml || fail "no pyproject.toml, so uv never created a project"
-    test -f uv.lock || fail "no uv.lock, so the project was never locked"
-    test -f main.py || fail "main.py was never created"
-    # httpx has to be a declared dependency of the project, not just installed
-    # into some environment the agent made.
-    grep -q httpx pyproject.toml \
-      || fail "httpx is not a dependency in pyproject.toml"
-    # And the project environment uv built has to actually import it.
-    .venv/bin/python -c "import httpx" \
-      || fail "httpx is not importable from the project environment uv built"
-    .venv/bin/python main.py | grep -qx ok \
-      || fail "main.py did not print exactly 'ok'"
+    # Test the find result, not the dirname of it: `dirname ""` prints `.` and
+    # exits 0, so the guard never fired and an empty workspace reported the
+    # next failure instead, naming a file that does not exist.
+    manifest=$(find . -name pyproject.toml -not -path "*/.venv/*" | head -1)
+    test -n "$manifest" \
+      || qs_fail "no pyproject.toml anywhere, so uv init never created a project"
+    root=$(dirname "$manifest")
+    test -f "$root/uv.lock" \
+      || qs_fail "no uv.lock beside pyproject.toml, so the project was never locked"
+    grep -q requests "$root/pyproject.toml" \
+      || qs_fail "requests is not a dependency in $root/pyproject.toml"
+    # Find the interpreter uv built rather than naming .venv. uv puts it there
+    # today, but nothing in the goal told the agent that, and a check that
+    # asserts an undocumented path fails runs that did everything right.
+    # No -type f: uv's interpreter is a symlink to the real one.
+    py=$(find "$root" -maxdepth 3 -path "*/bin/python" | head -1)
+    test -n "$py" \
+      || qs_fail "no project environment under $root, so uv never built one"
+    "$py" -c "import requests" \
+      || qs_fail "requests is not importable from the environment uv built"
 budgets:
   max_turns: 25
   max_seconds: 600
 replay:
   - python3 -m venv .tools
   - .tools/bin/pip install --quiet uv
-  - .tools/bin/uv init .
-  - .tools/bin/uv add httpx
-  - |
-    cat > main.py <<'PY'
-    import httpx  # noqa: F401
-
-    print("ok")
-    PY
-  - .tools/bin/uv run main.py
+  - .tools/bin/uv init hello-world
+  - cd hello-world && ../.tools/bin/uv run hello-world
+  - cd hello-world && ../.tools/bin/uv add requests

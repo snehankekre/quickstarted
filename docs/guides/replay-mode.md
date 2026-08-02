@@ -11,12 +11,14 @@ A `replay` block is the literal sequence a reader is told to type:
 replay:
   - .venv/bin/pip install --quiet httpx
   - |
-    cat > fetch.py <<'PY'
+    cat > example.py <<'PY'
     import httpx
 
-    print(httpx.get("https://www.python-httpx.org/").status_code)
+    r = httpx.get("https://www.example.org/")
+    print(r)
+    print(r.status_code)
     PY
-  - .venv/bin/python fetch.py
+  - .venv/bin/python example.py
 ```
 
 ```bash

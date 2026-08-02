@@ -3,19 +3,38 @@
 # stops, in the same workspace, with the qs_* helpers already defined.
 set -e
 
-test -f app.py || qs_fail "no app.py, so the tutorial never produced an application"
+# The tutorial says, in these words, "copy that to a file main.py". Asserting
+# app.py instead is asserting a filename the documentation never uses, which is
+# testing the task author rather than the docs.
+test -f main.py || qs_fail "no main.py, so the tutorial never produced an application"
 
-# Whichever documented way of serving is available, because the tutorial leads
-# with `fastapi dev` while uvicorn is the older instruction, and requiring one
-# of them measures my expectation rather than the docs. That mistake cost three
-# runs: an agent that installed plain `fastapi` rather than `fastapi[standard]`
-# had no uvicorn, and a working app was recorded as a documentation gap.
-if [ -x .venv/bin/fastapi ]; then
-  qs_serve .venv/bin/fastapi run app.py --host 127.0.0.1 --port "$QS_PORT"
-elif .venv/bin/python -c "import uvicorn" 2>/dev/null; then
-  qs_serve .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port "$QS_PORT"
-else
-  qs_fail "neither the fastapi CLI nor uvicorn is installed, so nothing can serve app.py"
+# The project environment is the agent's to choose: the tutorial index leads
+# with `uv add "fastapi[standard]"`, and documents pip underneath. Look for the
+# app wherever it landed rather than requiring one of them, because requiring
+# one measures my expectation instead of the documentation.
+for candidate in ./.venv/bin/fastapi ./.venv/Scripts/fastapi fastapi; do
+  # `[ -x fastapi ]` tests the relative path ./fastapi, never $PATH, so a
+  # globally installed CLI was missed and a stray executable of that name in
+  # the workspace was found and then not run. Resolve it the way the shell
+  # will, and serve exactly what was resolved.
+  resolved=$(command -v "$candidate" 2>/dev/null) || continue
+  if [ -n "$resolved" ] && [ -x "$resolved" ]; then
+    qs_serve "$resolved" run main.py --host 127.0.0.1 --port "$QS_PORT"
+    served=1
+    break
+  fi
+done
+if [ -z "${served:-}" ]; then
+  for python in .venv/bin/python python3 python; do
+    if command -v "$python" >/dev/null 2>&1 && "$python" -c "import uvicorn" 2>/dev/null; then
+      qs_serve "$python" -m uvicorn main:app --host 127.0.0.1 --port "$QS_PORT"
+      served=1
+      break
+    fi
+  done
 fi
+[ -n "${served:-}" ] || \
+  qs_fail "neither the fastapi CLI nor uvicorn is installed, so nothing can serve main.py"
 
-qs_wait_http /items/42 --json item_id=42
+# The documented example: @app.get("/") returning {"message": "Hello World"}.
+qs_wait_http / --json message="Hello World"

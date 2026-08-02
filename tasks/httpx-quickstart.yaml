@@ -1,33 +1,44 @@
-# Example task against a third-party project, as a template for the
-# public benchmark. Success asserts only local, deterministic facts.
-#
-# The demo request targets a package registry, not the documentation site.
-# Documentation hosts are unreachable from the shell by design, so a task
-# whose own example fetches its docs site fails on policy and reads like a
-# documentation gap.
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: httpx-quickstart
 goal: >
-  Following the HTTPX documentation, install httpx into the virtualenv in this
-  workspace and write a script fetch.py that uses httpx to GET
-  https://pypi.org/simple/ and prints the response status code. Run it.
+  Following the HTTPX documentation, install httpx into this workspace and make
+  the GET request its front page opens with, against the same URL it uses, then
+  print the response's status code.
 docs:
-  entrypoint: https://www.python-httpx.org/
+  path:
+    - https://www.python-httpx.org/
+    - https://www.python-httpx.org/quickstart/
   allow:
     - python-httpx.org
+network:
+  # The front page's own example fetches example.org. The shell cannot reach
+  # documentation hosts by design, but this is not one: it is the URL the
+  # documentation tells a reader to request, so refusing it would fail the task
+  # on harness policy and read like a documentation gap.
+  allow:
+    - example.org
 setup:
   - python3 -m venv .venv
 success:
+  # The documented session ends at `r.status_code` showing 200. There is no
+  # file to assert on, because the documentation never asks for one.
+  expect_output:
+    matches: "(^|[^0-9])200([^0-9]|$)"
   script: |
     set -e
-    fail() { echo "check failed: $1"; exit 1; }
-    test -f fetch.py || fail "fetch.py was never created"
-    grep -q "import httpx" fetch.py || fail "fetch.py does not import httpx"
-    .venv/bin/python fetch.py | grep -q "200" \
-      || fail "running fetch.py did not print a 200 status code"
+    .venv/bin/python -c "import httpx" \
+      || qs_fail "httpx is not installed in the workspace environment"
 budgets:
   max_turns: 15
   max_seconds: 600
 replay:
   - .venv/bin/pip install --quiet httpx
-  - printf 'import httpx\nr = httpx.get("https://pypi.org/simple/")\nprint(r.status_code)\n' > fetch.py
-  - .venv/bin/python fetch.py
+  - |
+    cat > example.py <<'PY'
+    import httpx
+
+    r = httpx.get("https://www.example.org/")
+    print(r)
+    print(r.status_code)
+    PY
+  - .venv/bin/python example.py

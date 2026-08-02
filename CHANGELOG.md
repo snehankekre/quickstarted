@@ -3,6 +3,87 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-08-02
+
+The release that goes back and asks whether the tasks in this repository were
+testing the quickstarts they named. Mostly they were not, and two of the
+reasons were bugs in the harness rather than in anybody's documentation.
+
+### Fixed
+
+- **HTML to text ran adjacent code blocks together.** The extractor joined text
+  nodes with no separator, so a page offering npm/yarn/pnpm/bun in tabs reached
+  the agent as `npm create vite@latestbash$ yarn create vite`, and Tailwind's
+  install page as `npm create vite@latest my-projectcd my-project`. Block tags
+  now end a line, `<pre>` keeps its indentation so a Python sample still runs,
+  and a highlighter's per-line spans end a line too: Shiki's `class="line"`,
+  which tailwindcss.com uses, and prism-react-renderer's `class="token-line"`,
+  which every Docusaurus site uses. Six of the eleven documentation sites
+  tested here were affected, which means the harness was scoring its own HTML
+  handling as a documentation gap. A blank line inside a sample survives as one
+  rather than reading the same as a line ending, adjacent inline `<code>`
+  elements no longer run together, and an unbalanced `<pre>` inside a `<script>`
+  or `<svg>` no longer leaks verbatim whitespace across the rest of the page.
+- **A `wait_http` with no `script` beside it compiled to an empty check**,
+  which exits 0 and therefore passed anything at all.
+
+### Added
+
+- **`success.expect_output`** asserts on what the run printed, with `contains`
+  and `matches`. Most quickstarts do not end at a file: DuckDB's persistent
+  storage example prints a table, Polars' getting started guide ends at
+  `print(df_csv)`, Prisma's SQLite quickstart ends at two `console.log` calls.
+  A check that could only see the filesystem forced its author to bolt an
+  artefact onto the goal, and the task then measured the invention. The harness
+  writes what the agent's commands printed to `.quickstarted-session.log` after
+  the agent stops and before the check runs; `qs_expect_output` is the shell
+  helper behind it, for checks that outgrow the declarative form.
+
+  What goes into that file is the part that matters. The commands themselves
+  are excluded, or a heredoc counts as output and a run that writes
+  `INSERT INTO test VALUES (42)` into a file and then dies on
+  `ModuleNotFoundError` satisfies `contains: "42"`. Output from commands that
+  exited non-zero is excluded too, or a stack trace quoting the source line
+  counts as the program having printed it. So is `setup` output, which belongs
+  to the harness rather than the reader.
+
+  The loader refuses an empty pattern, which `grep -E` matches against any
+  non-empty file, and a multi-line one, which `grep` reads as an alternation
+  and would silently weaken to an OR. An `expect_output:` or `wait_http:` with
+  nothing under it is now an error rather than a key that is silently dropped.
+
+### Changed
+
+- **`docs.entrypoint` became `docs.path`, an ordered list.** A quickstart is
+  rarely one page. FastAPI's install instruction is on `/tutorial/` and its
+  first application is on `/tutorial/first-steps/`; a task naming only the
+  second measures whether the agent thinks to go looking, and the harness then
+  attributes the failure to a page that is missing nothing. In the 0.3.0
+  benchmark this was the whole of the FastAPI result: three runs that read only
+  first-steps failed, five that also read the index passed, same model and same
+  day. `entrypoint` is still accepted as the one-page case. Giving both is an
+  error, because which page a reader starts at is the measurement and the
+  harness must not guess at it.
+- **Every page on the path is offered to the agent**, in the documentation's
+  own order, read by `--agent replay`, and checked by `validate --check-urls`.
+- **Every task was rewritten so that it names no file the target documentation
+  does not name.** `total.txt`, `out.csv`, `out.json`, `fetch.py`, `app.py` and
+  `script.py` appear in no project's documentation and are gone. FastAPI's task
+  now asserts `main.py`, which is the file the tutorial names in those words.
+  Tailwind's points at the CLI installation page instead of the Vite one, whose
+  documented step is a watcher this sandbox cannot leave running. Streamlit's
+  and uv's old entrypoints were hub pages carrying no commands at all.
+- **`quickstarted init` scaffolds a `path`**, and its starter check no longer
+  suggests asserting `app.py`.
+
+### Removed
+
+- **The Prefect task.** Its quickstart is a deploy story: log in to Prefect
+  Cloud, or start a server and `.serve()`. The task forbade all three and
+  substituted an invented flow that summed a file, so it tested roughly the
+  first step of the page. A task that fights its own documentation cannot be
+  fixed by rewording it.
+
 ## [0.5.0] - 2026-08-01
 
 The last of the papercuts, and a documentation site that says what 0.4.0

@@ -1,13 +1,14 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: prisma-quickstart
 goal: >
-  Using Prisma with a SQLite database, set up a project in this workspace with a
-  model called User that has an id, an email, and a name. Apply it to the
-  database, then write and run a script that creates one user with the email
-  "ada@example.com" and the name "Ada", reads all users back out of the database,
-  and writes them to out.json as a JSON array.
+  Work through Prisma's SQLite quickstart in this workspace: set up the project,
+  define the models it defines, apply them to the database, then write and run
+  the script it ends with, which creates the user and post it creates and prints
+  every user back with their posts.
 image: node:22-slim
 docs:
-  entrypoint: https://www.prisma.io/docs/getting-started/quickstart-sqlite
+  path:
+    - https://www.prisma.io/docs/getting-started/quickstart-sqlite
   allow:
     - prisma.io
 network:
@@ -16,24 +17,24 @@ network:
     # the run fails on a download, which says nothing about the documentation.
     - binaries.prisma.sh
 success:
+  # The quickstart's own ending is two console.log calls, not a file. Asserting
+  # a file here would mean inventing one the documentation never mentions and
+  # then testing the invention.
+  expect_output:
+    contains:
+      - alice@prisma.io
+      - Hello World
   script: |
     set -e
-    test -f out.json || qs_fail "no out.json, so nothing was ever read back from the database"
-    # Assert the data that came back out of the database, not the code that put
-    # it there.
-    node -e '
-      const rows = JSON.parse(require("fs").readFileSync("out.json", "utf8"));
-      if (!Array.isArray(rows)) throw new Error("out.json is not an array");
-      const ada = rows.find(r => r.email === "ada@example.com");
-      if (!ada) throw new Error("no ada@example.com in " + JSON.stringify(rows));
-      if (ada.name !== "Ada") throw new Error("wrong name: " + ada.name);
-      if (ada.id === undefined) throw new Error("no id on the row");
-    '
-    # And that it really was Prisma against SQLite.
-    test -n "$(find . -path ./node_modules -prune -o -name "schema.prisma" -print | head -1)" \
-      || qs_fail "no schema.prisma, so the rows did not come from Prisma"
-    test -n "$(find . -path ./node_modules -prune -o -name "*.db" -print | head -1)" \
-      || qs_fail "no .db file, so nothing was stored in SQLite"
+    test -n "$(find . -path ./node_modules -prune -o -name schema.prisma -print | head -1)" \
+      || qs_fail "no schema.prisma, so nothing came from Prisma"
+    db=$(find . -path ./node_modules -prune -o -name "*.db" -print | head -1)
+    test -n "$db" || qs_fail "no .db file, so nothing was stored in SQLite"
+    # The row has to be in the database, not only on the terminal. SQLite keeps
+    # short text inline in the page, so the file itself carries the evidence
+    # without needing a driver this image may not have.
+    grep -qa "alice@prisma.io" "$db" \
+      || qs_fail "$db does not contain alice@prisma.io, so the user was never persisted"
 budgets:
   max_turns: 35
   max_seconds: 900
@@ -51,6 +52,16 @@ replay:
       id    Int     @id @default(autoincrement())
       email String  @unique
       name  String?
+      posts Post[]
+    }
+
+    model Post {
+      id        Int     @id @default(autoincrement())
+      title     String
+      content   String?
+      published Boolean @default(false)
+      author    User    @relation(fields: [authorId], references: [id])
+      authorId  Int
     }
     PRISMA
   - npx prisma migrate dev --name init
@@ -59,19 +70,29 @@ replay:
     cat > script.ts <<'TS'
     import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
     import { PrismaClient } from "./generated/prisma/client.js";
-    import { writeFileSync } from "node:fs";
 
     const adapter = new PrismaBetterSqlite3({ url: "file:./dev.db" });
     const prisma = new PrismaClient({ adapter });
 
     async function main() {
-      await prisma.user.create({
-        data: { email: "ada@example.com", name: "Ada" },
+      const user = await prisma.user.create({
+        data: {
+          name: "Alice",
+          email: "alice@prisma.io",
+          posts: {
+            create: {
+              title: "Hello World",
+              content: "This is my first post!",
+              published: true,
+            },
+          },
+        },
+        include: { posts: true },
       });
-      writeFileSync(
-        "out.json",
-        JSON.stringify(await prisma.user.findMany(), null, 2),
-      );
+      console.log("Created user:", user);
+
+      const allUsers = await prisma.user.findMany({ include: { posts: true } });
+      console.log("All users:", JSON.stringify(allUsers, null, 2));
     }
 
     main().finally(() => prisma.$disconnect());

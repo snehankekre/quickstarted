@@ -7,7 +7,8 @@ goal: >
   your file is valid using the tool itself, and save the tool's validation
   output to validated.txt.
 docs:
-  entrypoint: https://snehankekre.com/quickstarted/getting-started/first-run.md
+  path:
+    - https://snehankekre.com/quickstarted/getting-started/first-run.md
   allow:
     - snehankekre.com
 setup:
@@ -25,7 +26,12 @@ success:
     .venv/bin/python - <<'PY'
     import yaml
     spec = yaml.safe_load(open("mine.yaml"))
-    assert spec["docs"]["entrypoint"].startswith("https://example.com/docs"), spec
+    docs = spec["docs"]
+    # Either shape is correct: 0.6.0 documents `path` and still accepts
+    # `entrypoint` for the one-page case. Asserting only one of them would fail
+    # an agent that followed whichever page it happened to read.
+    pages = docs.get("path") or [docs["entrypoint"]]
+    assert any(str(p).startswith("https://example.com/docs") for p in pages), spec
     assert "hello.txt" in spec["success"]["script"], spec
     PY
 budgets:

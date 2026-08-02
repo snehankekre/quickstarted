@@ -60,6 +60,43 @@ class Trace:
         urls = self.pages_read()
         return urls[-1] if urls else None
 
+    def session_output(self) -> str:
+        """What the agent's commands printed. Never what the agent typed.
+
+        Handed to the success check so a task can assert on what a reader would
+        have seen. Many quickstarts end at a value on a terminal rather than a
+        file on disk, and a check that could only look at the filesystem forced
+        its author to invent an artefact the documentation never mentions.
+
+        Two things are deliberately excluded, and both were bugs first.
+
+        **The commands themselves.** Writing `$ {command}` above each result put
+        the agent's own keystrokes in the text the check greps, and `grep` cannot
+        tell a heredoc from a result. A run that wrote `INSERT INTO test VALUES
+        (42)` into a file and then died on `ModuleNotFoundError` satisfied
+        `expect_output: {contains: "42"}`. Three tasks in this repository were
+        vacuous that way.
+
+        **Output from commands that failed.** Otherwise a stack trace quoting
+        the source line counts as the program having printed it.
+
+        `setup` is excluded too: those commands are the harness's, not the
+        reader's, so a task whose setup happens to print the expected string
+        would pass without the agent doing anything.
+        """
+        chunks: list[str] = []
+        with self._lock:
+            events = list(self.events)
+        for event in events:
+            if event.type != "tool_result" or event.data.get("tool") != "bash":
+                continue
+            if event.data.get("exit_code") != 0:
+                continue
+            output = str(event.data.get("output", ""))
+            if output:
+                chunks.append(output if output.endswith("\n") else output + "\n")
+        return "".join(chunks)
+
     def write_jsonl(self, path: str | Path) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -10,18 +10,20 @@ No API key, no cost, nothing to clone:
 
 ```
   [    0s] started on seatbelt
-  [    2s] read https://docs.streamlit.io/get-started
-  [   19s] blocked from the shell: checkip.amazonaws.com
-  [   20s] check exited 0
+  [    2s] read https://docs.streamlit.io/get-started/installation
+  [    3s] read https://docs.streamlit.io/get-started/fundamentals/main-concepts
+  [   24s] blocked from the shell: checkip.amazonaws.com
+  [   24s] check exited 0
 [PASS] streamlit-quickstart (replay)
   classification: passed
-  turns: 2, duration: 19.6s
+  turns: 2, duration: 24.4s
   backend: seatbelt
-  docs pages read: 1
+  docs pages read: 2
 ```
 
-The third line is the sandbox refusing Streamlit's own call home, which is what
-enforcement looks like from outside.
+Two pages, because that is the route a reader takes: install on one, the first
+app on the next. The fourth line is the sandbox refusing Streamlit's own call
+home, which is what enforcement looks like from outside.
 
 The agent gets your documentation and nothing else: no browser, no search
 engine, no network of its own, and a prompt that forbids leaning on what it
@@ -43,16 +45,28 @@ only tool that can read documentation, so the pages in the report are the pages
 the agent really read, and the one it was on when things went wrong is a fact
 rather than a guess.
 
-What happened there: the model read the tutorial and ran `pip install fastapi`.
-The page says `pip install "fastapi[standard]"`, and without the extra there is
-no server, so nothing could run the app it had just written. Claude Opus 5
-installs the extra and passes the same task every time.
+The obvious reading of that run is that the model ignored an instruction. It is
+worth being careful, because that reading is wrong, and the record is what shows
+it. On the same day, with the same model and the same task, eight runs split
+cleanly:
 
-Which is worth being precise about, because it shows what this measures and what
-it does not. The run proves a reader arrived at a broken result and names the page
-they were on. It cannot tell you whether the page buried something important or
-the model simply skipped it. Both are worth knowing and they are different
-problems, so the report gives you the page and leaves the judgement to you.
+| Pages read | Result |
+| --- | --- |
+| `first-steps/` only | 0 of 3 passed |
+| `first-steps/` **and** `/tutorial/` | 5 of 5 passed |
+
+`first-steps/` contains no install instruction at all. The install line lives on
+the tutorial index, which a human reaches by clicking through in order and an
+agent arriving from a search result never sees. So the failure is not a page
+that is wrong. It is a page that is not self-contained, plus a task that named
+only one page and let the harness blame it.
+
+That is what this measures, and the distinction is the whole product: a run
+proves a reader arrived at a broken result and names the pages they saw getting
+there. Whether the page buried something, omitted something, or the model
+skipped it is a judgement, and the report hands you the evidence rather than the
+verdict. It is also why a task names a [route rather than a
+page](reference/task-schema.md#why-a-path-rather-than-a-page).
 
 ## Start here
 

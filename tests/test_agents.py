@@ -151,3 +151,56 @@ def test_is_thinking_refusal(status, message, sent, expected):
     from quickstarted.agents.claude import is_thinking_refusal
 
     assert is_thinking_refusal(status, message, sent) is expected
+
+
+def test_prompt_names_every_page_on_the_documented_path(tmp_path):
+    """The route is the measurement, so the agent has to be given all of it.
+
+    FastAPI's install line is on /tutorial/ and its first application is on
+    /tutorial/first-steps/. Handing over only the second is how three benchmark
+    runs failed, with the harness blaming a page that was missing nothing.
+    """
+    from quickstarted.task import load_task
+
+    path = tmp_path / "t.yaml"
+    path.write_text(
+        "name: t\ngoal: g\ndocs:\n  path:\n"
+        "    - https://fastapi.tiangolo.com/tutorial/\n"
+        "    - https://fastapi.tiangolo.com/tutorial/first-steps/\n"
+        "success:\n  script: 'true'\n"
+    )
+    text = prompt.kickoff(load_task(path))
+    assert "https://fastapi.tiangolo.com/tutorial/" in text
+    assert "https://fastapi.tiangolo.com/tutorial/first-steps/" in text
+    # Numbered, because the order is the documentation's own.
+    assert text.index("1. https://fastapi.tiangolo.com/tutorial/") < text.index(
+        "2. https://fastapi.tiangolo.com/tutorial/first-steps/"
+    )
+
+
+def test_replay_reads_the_whole_documented_path(tmp_path):
+    """Replay is the record of what the docs say to type, so the trace has to
+    name every page those commands came from."""
+    from quickstarted.agents.replay import ReplayAgent
+    from quickstarted.task import load_task
+
+    path = tmp_path / "t.yaml"
+    path.write_text(
+        "name: t\ngoal: g\ndocs:\n  path:\n"
+        "    - https://a.example.com/one\n"
+        "    - https://a.example.com/two\n"
+        "success:\n  script: 'true'\nreplay:\n  - 'true'\n"
+    )
+    task = load_task(path)
+    read: list[str] = []
+
+    class FakeBelt:
+        def read_docs(self, url):
+            read.append(url)
+            return "page"
+
+        def bash(self, command):
+            return "exit code: 0\n"
+
+    ReplayAgent().run(task, FakeBelt(), deadline=float("inf"))
+    assert read == ["https://a.example.com/one", "https://a.example.com/two"]

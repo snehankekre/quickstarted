@@ -1,33 +1,39 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: fastapi-quickstart
 goal: >
-  Build a minimal FastAPI application in app.py exposing GET /items/42 which
-  returns JSON containing an "item_id" field equal to 42. Install whatever is
-  needed into the virtualenv in this workspace. Do not leave a server running;
-  just make sure app.py is importable and the dependencies are installed.
+  Following the FastAPI tutorial, install FastAPI into this workspace and copy
+  the tutorial's first example application into the file the tutorial names, so
+  that a GET request to / answers with the JSON the tutorial shows. Do not
+  leave a server running; the harness starts one itself.
 docs:
-  entrypoint: https://fastapi.tiangolo.com/tutorial/first-steps/
+  # Two pages, in the tutorial's own order. The install instruction is on the
+  # index and the first application is on first-steps, so an agent that lands on
+  # first-steps alone never sees how to install anything. Three benchmark runs
+  # failed exactly there, and the harness recorded a documentation gap against a
+  # page that is not missing anything.
+  path:
+    - https://fastapi.tiangolo.com/tutorial/
+    - https://fastapi.tiangolo.com/tutorial/first-steps/
   allow:
     - fastapi.tiangolo.com
-setup:
-  - python3 -m venv .venv
 success:
-  # The check has to choose between two documented ways of serving, which the
-  # declarative form deliberately cannot express, so it is a shell file using
-  # the qs_* helpers.
+  # A shell file rather than the declarative form: the check has to choose
+  # between two documented ways of serving, which `serve:` cannot express.
   file: checks/fastapi.sh
 budgets:
   max_turns: 20
   max_seconds: 480
 replay:
+  - python3 -m venv .venv
   - .venv/bin/pip install --quiet "fastapi[standard]"
   - |
-    cat > app.py <<'PY'
+    cat > main.py <<'PY'
     from fastapi import FastAPI
 
     app = FastAPI()
 
 
-    @app.get("/items/{item_id}")
-    async def read_item(item_id: int):
-        return {"item_id": item_id}
+    @app.get("/")
+    async def root():
+        return {"message": "Hello World"}
     PY

@@ -19,11 +19,15 @@ on `run` and `validate`.
 quickstarted init ENTRYPOINT [--name NAME] [--out PATH] [--force]
 ```
 
-Scaffolds a task file from a documentation URL: the entrypoint filled in, the
-host allowlist derived from it, a commented goal, a starter check, and the
-`yaml-language-server` line that gives editors completion. The result validates
-as written. The name comes from the host (`fastapi.tiangolo.com` is `fastapi`,
-`docs.streamlit.io` is `streamlit`) unless you pass `--name`.
+Scaffolds a task file from a documentation URL: a one-page `docs.path` with
+that URL on it, the host allowlist derived from it, a commented goal, a starter
+check, and the `yaml-language-server` line that gives editors completion. The
+result validates as written. The name comes from the host
+(`fastapi.tiangolo.com` is `fastapi`, `docs.streamlit.io` is `streamlit`)
+unless you pass `--name`.
+
+Add the rest of the route by hand. One URL is where a scaffold starts, not what
+a quickstart usually is.
 
 ## quickstarted validate
 
@@ -40,8 +44,10 @@ Exits 1 if any file is invalid, and 3 if it found no files at all, because
 exiting 0 there lets a job in the wrong directory report success for validating
 nothing.
 
-`--check-urls` also fetches every entrypoint, honouring `robots.txt`, so a dead
-link surfaces before a sweep pays for it.
+`--check-urls` also fetches every page on every documentation path, honouring
+`robots.txt`, so a dead link surfaces before a sweep pays for it. A route is
+only as good as its worst link, which is why it checks all of them and not just
+the first.
 
 ## quickstarted check
 

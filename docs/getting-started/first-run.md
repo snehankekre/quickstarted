@@ -29,33 +29,44 @@ and checked the result. No key, no cost.
 quickstarted init https://www.python-httpx.org/
 ```
 
-That writes `tasks/httpx-quickstart.yaml` with the entrypoint filled in, the
-allowlist derived from the host, and a schema line that gives any language
-server editor completion on every field. Fill in the goal and the check:
+That writes `tasks/httpx-quickstart.yaml` with the documentation path filled in,
+the allowlist derived from the host, and a schema line that gives any language
+server editor completion on every field. Fill in the goal, the rest of the path,
+and the check:
 
 ```yaml
 name: httpx-quickstart
 goal: >
-  Install httpx into the virtualenv in this workspace and write fetch.py, which
-  performs a GET request and prints the response status code. Run it.
+  Following the HTTPX documentation, install httpx into this workspace and make
+  the GET request its front page opens with, against the same URL it uses, then
+  print the response's status code.
 docs:
-  entrypoint: https://www.python-httpx.org/
+  path:
+    - https://www.python-httpx.org/
+    - https://www.python-httpx.org/quickstart/
   allow:
     - python-httpx.org
+network:
+  # The front page's own example fetches example.org, so the shell has to be
+  # allowed to reach it. Otherwise the task fails on harness policy and reads
+  # like a documentation gap.
+  allow:
+    - example.org
 setup:
   - python3 -m venv .venv
 success:
+  expect_output:
+    matches: "(^|[^0-9])200([^0-9]|$)"
   script: |
     set -e
-    test -f fetch.py || qs_fail "no fetch.py, so the quickstart produced nothing"
     .venv/bin/python -c "import httpx" || qs_fail "httpx is not installed"
-    .venv/bin/python fetch.py | grep -q 200 || qs_fail "fetch.py did not print 200"
 ```
 
-Four lines of shell are the entire scoring mechanism, and they assert exactly
-what the documentation promises a reader: a file, a working import, and the
-status code the page says you will see. Each one says what it saw when it fails,
-because a verdict you cannot act on is barely a verdict.
+That is the entire scoring mechanism, and it asserts exactly what the
+documentation promises a reader: a working import, and the status code the page
+says you will see. It names no file, because the documented example is a REPL
+session and names none either. Asserting `fetch.py` here would test a filename
+this task invented rather than anything HTTPX wrote down.
 
 Check that it parses:
 
@@ -89,8 +100,9 @@ quickstarted run tasks/httpx-quickstart.yaml --agent claude
   docs pages read: 1
 ```
 
-One page was enough. The model read the httpx landing page, installed the
-package, wrote `fetch.py`, ran it, and stopped. Your script then agreed.
+The model read the httpx documentation, installed the package, made the request
+the front page opens with, and stopped. Your check then agreed, having asserted
+the status code the page says a reader will see.
 
 With no paths at all, `quickstarted run` reads every task in `tasks/`.
 
@@ -183,12 +195,14 @@ type. No model, no key, no cost.
 replay:
   - .venv/bin/pip install --quiet httpx
   - |
-    cat > fetch.py <<'PY'
+    cat > example.py <<'PY'
     import httpx
 
-    print(httpx.get("https://pypi.org/simple/").status_code)
+    r = httpx.get("https://www.example.org/")
+    print(r)
+    print(r.status_code)
     PY
-  - .venv/bin/python fetch.py
+  - .venv/bin/python example.py
 ```
 
 ```bash

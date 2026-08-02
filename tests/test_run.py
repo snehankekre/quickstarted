@@ -212,7 +212,7 @@ def _summary_for_check(output: str) -> str:
     task = Task(
         name="t",
         goal="g",
-        docs_entrypoint="https://example.com/",
+        docs_path=("https://example.com/",),
         docs_allow=("example.com",),
         success_script="false",
     )
@@ -245,3 +245,59 @@ def test_a_check_that_speaks_gets_no_lecture():
     summary = _summary_for_check("check failed: app.py was never created")
     assert "app.py was never created" in summary
     assert "printed nothing" not in summary
+
+
+def test_session_log_excludes_setup_output():
+    """expect_output asserts on what the reader would have seen.
+
+    `setup` commands are the harness's own, so their output must not count:
+    a task whose setup happens to print the expected string would pass without
+    the agent doing anything.
+    """
+    from quickstarted.trace import Trace
+
+    trace = Trace()
+    trace.add("setup", command="printf 42", output="42")
+    trace.add("tool_call", tool="bash", command="python example.py")
+    trace.add("tool_result", tool="bash", exit_code=0, output="shape: (1, 1)")
+    trace.add("tool_call", tool="read_docs", url="https://x/")
+    trace.add("docs_read", url="https://x/", chars=5)
+
+    log = trace.session_output()
+    assert "shape: (1, 1)" in log
+    assert "42" not in log, "setup output must not be assertable"
+    assert "read_docs" not in log
+
+
+def test_session_log_excludes_what_the_agent_typed():
+    """The command text used to sit in the same file the check greps, so a
+    heredoc satisfied the assertion. A run that wrote `VALUES (42)` into a file
+    and then died on ModuleNotFoundError passed `expect_output: contains: "42"`.
+    """
+    from quickstarted.trace import Trace
+
+    trace = Trace()
+    trace.add("tool_call", tool="bash", command="cat > x.py <<'PY'\nprint(42)\nPY")
+    trace.add("tool_result", tool="bash", exit_code=0, output="")
+    trace.add("tool_call", tool="bash", command="python x.py")
+    trace.add("tool_result", tool="bash", exit_code=1, output="ModuleNotFoundError")
+
+    log = trace.session_output()
+    assert "42" not in log, "the agent's own keystrokes must not be assertable"
+    assert "cat >" not in log
+
+
+def test_session_log_excludes_output_of_commands_that_failed():
+    """Otherwise a stack trace quoting the source line counts as the program
+    having printed it."""
+    from quickstarted.trace import Trace
+
+    trace = Trace()
+    trace.add("tool_call", tool="bash", command="python x.py")
+    trace.add("tool_result", tool="bash", exit_code=1, output="Traceback: value 42")
+    trace.add("tool_call", tool="bash", command="python y.py")
+    trace.add("tool_result", tool="bash", exit_code=0, output="the answer is 7")
+
+    log = trace.session_output()
+    assert "42" not in log
+    assert "the answer is 7" in log

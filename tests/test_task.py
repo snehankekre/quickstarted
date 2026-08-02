@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from quickstarted.task import TaskError, load_task
@@ -317,3 +319,169 @@ def test_needs_node_detection(tmp_path, script, expected):
         "  script: |\n" + "".join(f"    {line}\n" for line in script.splitlines())
     )
     assert load_task(write(tmp_path, body)).needs_node is expected
+
+
+# ---- docs.path -------------------------------------------------------------
+
+PATH_TASK = """
+name: demo
+goal: Do the thing.
+docs:
+  path:
+    - https://a.example.com/tutorial/
+    - https://a.example.com/tutorial/first-steps/
+    - https://b.example.com/install/
+success:
+  script: "true"
+"""
+
+
+def test_docs_path_keeps_the_documented_order(tmp_path):
+    """A quickstart is a route. Reordering it would change what is tested."""
+    task = load_task(write(tmp_path, PATH_TASK))
+    assert task.docs_path == (
+        "https://a.example.com/tutorial/",
+        "https://a.example.com/tutorial/first-steps/",
+        "https://b.example.com/install/",
+    )
+    assert task.docs_entrypoint == "https://a.example.com/tutorial/"
+
+
+def test_every_host_on_the_path_is_allowlisted(tmp_path):
+    """A page the task names must be readable, or the route is a dead end."""
+    task = load_task(write(tmp_path, PATH_TASK))
+    assert task.docs_allow == ("a.example.com", "b.example.com")
+    assert task.host_allowed("https://b.example.com/install/")
+
+
+def test_entrypoint_still_loads_as_a_one_page_path(tmp_path):
+    """Tasks written against 0.5 keep working."""
+    task = load_task(write(tmp_path, VALID))
+    assert task.docs_path == ("https://example.com/docs/",)
+
+
+def test_path_and_entrypoint_together_is_an_error(tmp_path):
+    """Which page a reader starts at is the measurement; do not guess at it."""
+    text = PATH_TASK.replace(
+        "  path:", "  entrypoint: https://c.example.com/\n  path:"
+    )
+    with pytest.raises(TaskError, match="both 'path' and 'entrypoint'"):
+        load_task(write(tmp_path, text))
+
+
+def test_empty_path_is_an_error(tmp_path):
+    text = "name: d\ngoal: g\ndocs:\n  path: []\nsuccess:\n  script: 'true'\n"
+    with pytest.raises(TaskError, match=re.escape("docs.path is empty")):
+        load_task(write(tmp_path, text))
+
+
+def test_path_entries_must_be_urls(tmp_path):
+    text = "name: d\ngoal: g\ndocs:\n  path:\n    - /tutorial/\nsuccess:\n  script: 'true'\n"
+    with pytest.raises(TaskError, match="must be http"):
+        load_task(write(tmp_path, text))
+
+
+def test_duplicate_path_entries_are_an_error(tmp_path):
+    """A repeated page is a typo, and it would double-count in the trace."""
+    text = (
+        "name: d\ngoal: g\ndocs:\n  path:\n    - https://a.com/x\n    - https://a.com/x\n"
+        "success:\n  script: 'true'\n"
+    )
+    with pytest.raises(TaskError, match="twice"):
+        load_task(write(tmp_path, text))
+
+
+# ---- success.expect_output -------------------------------------------------
+
+
+def _script(tmp_path, success_block: str) -> str:
+    text = f"name: d\ngoal: g\ndocs:\n  entrypoint: https://a.com/\nsuccess:\n{success_block}"
+    return load_task(write(tmp_path, text)).success_script
+
+
+def test_expect_output_compiles_to_a_helper_call(tmp_path):
+    script = _script(
+        tmp_path, "  expect_output:\n    contains:\n      - '35.75'\n      - ok\n"
+    )
+    assert script.strip() == "qs_expect_output --contains '35.75' --contains 'ok'"
+
+
+def test_expect_output_accepts_a_bare_string(tmp_path):
+    script = _script(tmp_path, "  expect_output:\n    contains: '35.75'\n")
+    assert "--contains '35.75'" in script
+
+
+def test_expect_output_and_matches_together(tmp_path):
+    script = _script(
+        tmp_path, "  expect_output:\n    contains: a\n    matches: '^b.*c$'\n"
+    )
+    assert "--contains 'a'" in script
+    assert "--matches '^b.*c$'" in script
+
+
+def test_expect_output_needs_something_to_assert(tmp_path):
+    with pytest.raises(TaskError, match="needs 'contains' or 'matches'"):
+        _script(tmp_path, "  expect_output:\n    contains: []\n")
+
+
+def test_expect_output_rejects_unknown_keys(tmp_path):
+    with pytest.raises(TaskError, match="unknown expect_output keys"):
+        _script(tmp_path, "  expect_output:\n    equals: hi\n")
+
+
+def test_expect_output_satisfies_serve(tmp_path):
+    """serve needs something that decides; expect_output decides."""
+    script = _script(
+        tmp_path, "  serve: ./run.sh\n  expect_output:\n    contains: started\n"
+    )
+    assert "qs_serve ./run.sh" in script
+    assert "qs_expect_output --contains 'started'" in script
+
+
+def test_expect_output_runs_before_an_inline_script(tmp_path):
+    script = _script(
+        tmp_path, "  expect_output:\n    contains: hi\n  script: |\n    test -f out\n"
+    )
+    assert script.index("qs_expect_output") < script.index("test -f out")
+
+
+def test_wait_http_alone_still_compiles_to_a_real_check(tmp_path):
+    """It used to compile to an empty script, which exits 0 for anything."""
+    script = _script(
+        tmp_path, "  wait_http:\n    path: /health\n    contains: ok\n"
+    )
+    assert script.strip().startswith("qs_wait_http")
+
+
+def test_expect_output_rejects_an_empty_string(tmp_path):
+    """`grep -Eq ""` matches any non-empty file, so this asserts nothing."""
+    with pytest.raises(TaskError, match="matches anything"):
+        _script(tmp_path, "  expect_output:\n    contains: ''\n")
+
+
+def test_expect_output_rejects_a_multi_line_pattern(tmp_path):
+    """grep reads a newline in the pattern as an alternation, so a multi-line
+    scalar silently weakens to an OR of its lines."""
+    with pytest.raises(TaskError, match="multiple lines"):
+        _script(tmp_path, "  expect_output:\n    contains: |\n      alpha\n      beta\n")
+
+
+def test_an_empty_expect_output_block_is_an_error(tmp_path):
+    """It used to be dropped by truthiness: the task looked like it asserted
+    something and compiled to a check that did not."""
+    with pytest.raises(TaskError, match="is empty"):
+        _script(tmp_path, "  expect_output:\n  script: 'true'\n")
+
+
+def test_an_empty_wait_http_block_is_an_error(tmp_path):
+    with pytest.raises(TaskError, match="is empty"):
+        _script(tmp_path, "  wait_http:\n  script: 'true'\n")
+
+
+def test_task_rejects_a_string_where_the_path_belongs():
+    """0.5-era positional callers passed a URL into the slot docs_path now holds,
+    and the replay agent then read one page per character."""
+    from quickstarted.task import Task
+
+    with pytest.raises(TaskError, match="not a string"):
+        Task("n", "g", "https://example.com/docs", ("example.com",), "true")

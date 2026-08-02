@@ -1,11 +1,16 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: django-quickstart
 goal: >
-  Following the Django tutorial, install Django into the virtualenv in this
-  workspace, create a Django project called mysite, and inside it create an app
-  called polls. Give the polls app a view at the URL path "polls/" that returns
-  the text "Hello, world." Do not leave a development server running.
+  Work through part 1 of the Django tutorial in this workspace: install Django,
+  create the project and the app it creates, and write the first view exactly as
+  the tutorial writes it, wired to the URL path the tutorial wires it to. Do not
+  leave a development server running.
 docs:
-  entrypoint: https://docs.djangoproject.com/en/stable/intro/tutorial01/
+  # Install first, then part 1, which is the order the tutorial itself gives:
+  # part 1 opens by checking Django is already installed and links back here.
+  path:
+    - https://docs.djangoproject.com/en/stable/intro/install/
+    - https://docs.djangoproject.com/en/stable/intro/tutorial01/
   allow:
     - docs.djangoproject.com
     - djangoproject.com
@@ -15,8 +20,9 @@ success:
   script: |
     set -e
     WS="$PWD"
-    # The tutorial's own layout puts manage.py one level down, but
-    # `startproject mysite .` is also documented. Find it rather than assuming.
+    # The tutorial runs `startproject mysite djangotutorial`, so manage.py sits
+    # one level down; `startproject mysite .` is documented elsewhere. Find it
+    # rather than assuming either.
     manage=$(find . -name manage.py -not -path "./.venv/*" | head -1)
     test -n "$manage" \
       || qs_fail "no manage.py anywhere, so startproject never ran"
@@ -41,33 +47,37 @@ success:
     response = Client().get("/polls/")
     body = response.content.decode()
     assert response.status_code == 200, (response.status_code, body[:400])
-    assert "Hello, world." in body, body[:400]
+    # The tutorial's own string. Asserting a shortened version would pass for a
+    # view the tutorial never told anyone to write.
+    assert "Hello, world. You're at the polls index." in body, body[:400]
     PY
 budgets:
   max_turns: 30
   max_seconds: 720
 replay:
   - .venv/bin/pip install --quiet django
-  - .venv/bin/django-admin startproject mysite
-  - cd mysite && ../.venv/bin/python manage.py startapp polls
+  - .venv/bin/django-admin startproject mysite djangotutorial
+  - cd djangotutorial && ../.venv/bin/python manage.py startapp polls
   - |
-    cat > mysite/polls/views.py <<'PY'
+    cat > djangotutorial/polls/views.py <<'PY'
     from django.http import HttpResponse
 
 
     def index(request):
-        return HttpResponse("Hello, world.")
+        return HttpResponse("Hello, world. You're at the polls index.")
     PY
   - |
-    cat > mysite/polls/urls.py <<'PY'
+    cat > djangotutorial/polls/urls.py <<'PY'
     from django.urls import path
 
     from . import views
 
-    urlpatterns = [path("", views.index, name="index")]
+    urlpatterns = [
+        path("", views.index, name="index"),
+    ]
     PY
   - |
-    cat > mysite/mysite/urls.py <<'PY'
+    cat > djangotutorial/mysite/urls.py <<'PY'
     from django.contrib import admin
     from django.urls import include, path
 
@@ -76,4 +86,4 @@ replay:
         path("admin/", admin.site.urls),
     ]
     PY
-  - cd mysite && ../.venv/bin/python manage.py check
+  - cd djangotutorial && ../.venv/bin/python manage.py check

@@ -1,30 +1,35 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: duckdb-quickstart
 goal: >
-  Using DuckDB from Python, create a persistent database file named shop.db in
-  this workspace containing a table "orders" with columns id (integer) and
-  total (double), insert the three rows (1, 10.5), (2, 20.0) and (3, 5.25),
-  then query the sum of total and write just that number to total.txt. Put
-  your code in script.py and run it.
+  Following the DuckDB Python documentation, install DuckDB and work through its
+  persistent storage example: connect to the database file it names, create the
+  table it describes, insert the value it inserts, and print the table's
+  contents.
 docs:
-  entrypoint: https://duckdb.org/docs/stable/clients/python/overview
+  # duckdb.org answers this URL with a client-side redirect stub whose entire
+  # text is "Redirecting…". The harness follows it now; before it did, every
+  # agent read 73 characters of nothing here and the run was scored as a
+  # documentation gap.
+  path:
+    - https://duckdb.org/docs/stable/clients/python/overview
   allow:
     - duckdb.org
 setup:
   - python3 -m venv .venv
 success:
+  # What the documented example promises is a number on a terminal.
+  expect_output:
+    contains: "42"
   script: |
     set -e
-    test -f script.py || qs_fail "no script.py, so the quickstart produced no program"
-    test -f shop.db || qs_fail "no shop.db, so the database was never created"
-    test -f total.txt || qs_fail "no total.txt, so the total was never written out"
-    grep -Eq '^35\.75$|^35\.8$|^35\.750*$' total.txt \
-      || qs_fail "total.txt says $(head -c 80 total.txt), wanted 35.75"
-    # The database must really hold the rows, not just the answer file.
+    test -f file.db \
+      || qs_fail "no file.db, so no connection was made to a persistent database"
+    # And it has to have survived in the file, not only on the terminal.
     .venv/bin/python - <<'PY'
     import duckdb
-    con = duckdb.connect("shop.db", read_only=True)
-    rows = con.execute("select id, total from orders order by id").fetchall()
-    assert rows == [(1, 10.5), (2, 20.0), (3, 5.25)], rows
+    con = duckdb.connect("file.db", read_only=True)
+    rows = con.execute("select i from test").fetchall()
+    assert rows == [(42,)], rows
     PY
 budgets:
   max_turns: 20
@@ -32,16 +37,17 @@ budgets:
 replay:
   - .venv/bin/pip install --quiet duckdb
   - |
-    cat > script.py <<'PY'
+    cat > example.py <<'PY'
     import duckdb
 
-    con = duckdb.connect("shop.db")
-    con.execute("create or replace table orders (id integer, total double)")
-    con.executemany("insert into orders values (?, ?)",
-                    [(1, 10.5), (2, 20.0), (3, 5.25)])
-    total = con.execute("select sum(total) from orders").fetchone()[0]
-    with open("total.txt", "w") as fh:
-        fh.write(f"{total}\n")
+    # create a connection to a file called 'file.db'
+    con = duckdb.connect("file.db")
+    # create a table and load data into it
+    con.sql("CREATE TABLE test (i INTEGER)")
+    con.sql("INSERT INTO test VALUES (42)")
+    # query the table
+    con.table("test").show()
+    # explicitly close the connection
     con.close()
     PY
-  - .venv/bin/python script.py
+  - .venv/bin/python example.py

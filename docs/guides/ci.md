@@ -35,7 +35,7 @@ jobs:
 
 `quickstarted run` exits 1 on a documentation gap, so the job gates the merge.
 It exits 2 when nothing produced evidence and 3 on a usage error such as a job
-running in the wrong directory, which used to look like success. The full table
+running in the wrong directory, which would otherwise look like success. The full table
 is in the [CLI reference](../reference/cli.md#exit-codes).
 
 GitHub runners have Docker, so `--backend docker` gets you an enforced boundary
@@ -147,7 +147,7 @@ esac
 
 A task with no `replay` block has nothing for replay mode to run. It reports as
 skipped, appears in JUnit as `<skipped/>`, and stays out of the discarded
-counts. A suite of them used to report "no evidence" on every push, which reads
+counts. Otherwise a suite of them reports "no evidence" on every push, which reads
 like the tool is broken rather than like there was nothing to do.
 
 ## What lands in the pull request

@@ -28,20 +28,35 @@ No API key, no cost, and nothing to clone:
 
 ```
   [    0s] started on seatbelt
-  [    2s] read https://docs.streamlit.io/get-started
-  [   19s] blocked from the shell: checkip.amazonaws.com
-  [   20s] check exited 0
+  [    2s] read https://docs.streamlit.io/get-started/installation
+  [    3s] read https://docs.streamlit.io/get-started/fundamentals/main-concepts
+  [   24s] blocked from the shell: checkip.amazonaws.com
+  [   24s] check exited 0
 [PASS] streamlit-quickstart (replay)
   classification: passed
-  turns: 2, duration: 19.6s
+  turns: 2, duration: 24.4s
   backend: seatbelt
-  docs pages read: 1
+  docs pages read: 2
 ```
 
 That ran the commands Streamlit's documentation tells a reader to type, booted
-the app, and polled its health endpoint. The third line is the sandbox refusing
-Streamlit's own call home, which is what enforcement looks like from the
-outside. `quickstarted examples` lists the others.
+the app, and polled its health endpoint. Two pages, because that is the route a
+reader takes: install on one, the first app on the next. The fourth line is the
+sandbox refusing Streamlit's own call home, which is what enforcement looks
+like from the outside. `quickstarted examples` lists the others.
+
+## Install
+
+```bash
+uvx quickstarted run --example httpx --agent replay   # nothing to install
+pip install "quickstarted[claude]"                    # agent mode with Claude
+pip install "quickstarted[all-agents]"                # + OpenAI and Gemini
+pip install quickstarted                              # replay mode only, no SDK
+```
+
+Python 3.9+. One runtime dependency: PyYAML. Every adapter is a plain tool-use
+loop against the same two harness-owned tools and the same shared prompt, so
+cross-model numbers compare like with like.
 
 ## How it works
 
@@ -50,12 +65,17 @@ You write a task, in YAML. `quickstarted init <docs-url>` scaffolds one:
 ```yaml
 name: streamlit-quickstart
 goal: >
-  Install Streamlit into the virtualenv in this workspace and build a small app
-  in app.py that shows a title and a slider whose value is displayed on the
-  page. Do not start a long-running server yourself; just leave app.py ready to
-  run and confirm streamlit is installed.
+  Following Streamlit's documentation, install Streamlit into this workspace and
+  write a small script that uses Streamlit commands to put something on the
+  page, the way its basic concepts page describes. Leave the script ready to run
+  and do not start a long-running server yourself; the harness starts one.
 docs:
-  entrypoint: https://docs.streamlit.io/get-started
+  # The route a reader takes, in the project's own order. Install is one page
+  # and the first app is another, and a task naming only the second measures
+  # whether the agent goes looking rather than whether the docs work.
+  path:
+    - https://docs.streamlit.io/get-started/installation
+    - https://docs.streamlit.io/get-started/fundamentals/main-concepts
   allow:
     - docs.streamlit.io
     - streamlit.io
@@ -64,9 +84,19 @@ setup:
 success:
   script: |
     set -e
-    test -f app.py || qs_fail "no app.py, so the quickstart produced nothing"
-    .venv/bin/python -c "import streamlit"
+    app=$(find . -maxdepth 2 -name "*.py" -not -path "./.venv/*" \
+      -exec grep -l "streamlit" {} + | head -1)
+    test -n "$app" || qs_fail "no Python file imports streamlit, so no app was written"
+    qs_serve .venv/bin/streamlit run "$app" --server.headless true \
+      --server.port "$QS_PORT" --browser.gatherUsageStats false
+    qs_wait_http /_stcore/health --contains ok
 ```
+
+Note what the task does not do: it never names a file. Streamlit's
+documentation writes `streamlit run your_script.py`, a placeholder, so the
+check finds the script rather than dictating one. A task that demands `app.py`
+fails a reader who followed the page exactly, and reports it as a
+documentation gap.
 
 Then you run an agent against it:
 
@@ -112,9 +142,24 @@ model asked to grade its own work will tell you the app is ready when `app.py`
 does not parse.
 
 Most checks are the size of the one above. You are asserting whatever your
-tutorial already promises the reader: the file exists, the import works, the
-command runs, the output contains the number on the page. If your quickstart
-ends with "you should see `200`", the check is `grep -q 200`.
+tutorial already promises the reader: the import works, the command runs, the
+file your page told them to create exists. If your quickstart ends with "you
+should see `200`", the check is one line:
+
+```yaml
+success:
+  expect_output:
+    contains: "200"
+```
+
+**Name nothing your documentation does not name.** Most quickstarts end at a
+value on a terminal rather than a file, and a check that can only see the
+filesystem pushes you into inventing somewhere to put it. Every task in this
+repository once did that: FastAPI's tutorial says "copy that to a file
+`main.py`" and the task demanded `app.py`, so a reader who followed the page
+exactly would have failed. [Why this matters][fid].
+
+[fid]: https://snehankekre.com/quickstarted/explanation/fidelity/
 
 **Say what you saw.** `qs_fail` is defined for every check, and a failure that
 reports `check failed: httpx is not a dependency in pyproject.toml` is a bug
@@ -130,34 +175,18 @@ not ask the agent to leave a process running and do not take its word for it:
 
 ```yaml
 success:
-  serve: .venv/bin/fastapi run app.py --host 127.0.0.1 --port $QS_PORT
+  serve: .venv/bin/fastapi run main.py --host 127.0.0.1 --port $QS_PORT
   wait_http:
-    path: /items/42
+    path: /
     json:
-      item_id: 42
-  script: test -f app.py
+      message: Hello World
+  script: test -f main.py
 ```
 
 The harness backgrounds it, polls, keeps the last error, dumps the server log
 when it gives up, and kills it. Every criterion is still yours: a task that
 serves and asserts nothing is a validation error, because a server that answers
 every request with a 500 also boots.
-
-## Iterate on a check for free
-
-```bash
-quickstarted run tasks/mine.yaml --agent claude --keep-sandbox
-quickstarted check tasks/mine.yaml --sandbox /tmp/quickstarted-8ilw9l6v/workspace
-```
-
-`check` re-runs only the success script against the workspace the run left
-behind, under the same backend. About a second per iteration, instead of a paid
-run per iteration.
-
-`quickstarted validate` catches the rest before you spend anything: a check that
-requires a `.venv` nothing creates, a check that can fail in silence, an
-entrypoint that 404s (`--check-urls`). Every one of those produces a number that
-is wrong rather than low.
 
 ## Replay mode, the free precondition
 
@@ -174,6 +203,22 @@ broken, no reader stands a chance and an agent run only adds noise on top of a
 failure you already know about. It cannot tell you whether a reader could have
 *found* those commands, understood their order, or guessed the prerequisite you
 left out. That is what agent mode is for.
+
+## Iterate on a check for free
+
+```bash
+quickstarted run tasks/mine.yaml --agent claude --keep-sandbox
+quickstarted check tasks/mine.yaml --sandbox /tmp/quickstarted-8ilw9l6v/workspace
+```
+
+`check` re-runs only the success script against the workspace the run left
+behind, under the same backend. About a second per iteration, instead of a paid
+run per iteration.
+
+`quickstarted validate` catches the rest before you spend anything: a check that
+requires a `.venv` nothing creates, a check that can fail in silence, an
+entrypoint that 404s (`--check-urls`). Every one of those produces a number that
+is wrong rather than low.
 
 ## Pass rates
 
@@ -270,19 +315,6 @@ Agent-authored commands from somebody else's quickstart are untrusted code.
 pass `--allow-unenforced`. Run `quickstarted doctor` to see what your machine
 can enforce, which SDKs and keys it can find, and whether your tasks parse.
 Details in [SECURITY.md](SECURITY.md).
-
-## Install
-
-```bash
-uvx quickstarted run --example httpx --agent replay   # nothing to install
-pip install "quickstarted[claude]"                    # agent mode with Claude
-pip install "quickstarted[all-agents]"                # + OpenAI and Gemini
-pip install quickstarted                              # replay mode only, no SDK
-```
-
-Python 3.9+. One runtime dependency: PyYAML. Every adapter is a plain tool-use
-loop against the same two harness-owned tools and the same shared prompt, so
-cross-model numbers compare like with like.
 
 ## CI
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from .agents.base import Agent, AgentOutcome, Toolbelt
 from .docs import DocsClient, affordance_summary
@@ -37,6 +38,11 @@ AGENT_REFUSAL = "agent_refusal"
 SKIPPED = "skipped"
 
 EVIDENTIAL = (PASSED, DOCS_GAP)
+
+#: Where the recorded session output is left for the success check to read.
+#: Dotted and prefixed so a check that globs the workspace does not trip over
+#: it, and so a kept sandbox still shows what the agent did.
+SESSION_LOG_NAME = ".quickstarted-session.log"
 
 _INFRA_MARKERS = (
     "connection error",
@@ -240,6 +246,18 @@ def run_task(
             # check anyway would let a task whose assertions happen to hold in
             # an empty workspace report itself as passed.
             return finish(outcome, None)
+
+        # Hand the check what the reader would have seen. Written now rather
+        # than earlier so the agent can never read it back: by this point it
+        # has stopped. `executor.root` is the workspace on every backend, and
+        # the docker one bind-mounts it, so a host write lands in the sandbox.
+        try:
+            (Path(executor.root) / SESSION_LOG_NAME).write_text(
+                trace.session_output(), encoding="utf-8"
+            )
+        except OSError as exc:
+            # A check that does not use qs_expect_output should not die here.
+            trace.add("session_log_error", error=str(exc))
 
         check = executor.run(
             task.check_script,

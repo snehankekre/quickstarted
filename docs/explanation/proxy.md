@@ -6,22 +6,13 @@ Every report claims to list the documentation pages an agent read, and names
 the last one before a failure. That claim is only worth something if the list
 is complete.
 
-## The bug that caused this design
+An allowlist inside the `read_docs` tool cannot make it complete. If the shell
+can reach the internet, an agent that runs `curl https://docs.example.com/page`
+has read documentation the trace never saw, and nothing in the output would
+hint at it. "The last page read before the failure" would be a guess wearing
+the costume of a fact.
 
-Version 0.1 put the allowlist inside the `read_docs` tool and left `bash` with
-ordinary network access. The guarantee held only while the agent chose to
-cooperate. Proof, from the sandbox of that version:
-
-```
-bash -> non-allowlisted host: 200 (exit 0)
-```
-
-Any agent that ran `curl https://docs.example.com/page` read documentation the
-trace never saw. Nothing in the design stopped it, and nothing in the output
-would have hinted at it. "The last page read before the failure" was a guess
-wearing the costume of a fact.
-
-## The fix
+## How it works
 
 All shell traffic leaves through a proxy the harness owns, and the policy has
 one asymmetry at its centre:

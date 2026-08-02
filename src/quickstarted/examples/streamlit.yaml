@@ -1,39 +1,47 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: streamlit-quickstart
 goal: >
-  Install Streamlit into the virtualenv in this workspace and build a small app
-  in app.py that shows a title and a slider whose value is displayed on the
-  page. Do not start a long-running server yourself; just leave app.py ready to
-  run and confirm streamlit is installed.
+  Following Streamlit's documentation, install Streamlit into this workspace and
+  write a small script that uses Streamlit commands to put something on the
+  page, the way its basic concepts page describes. Leave the script ready to run
+  and do not start a long-running server yourself; the harness starts one.
 docs:
-  entrypoint: https://docs.streamlit.io/get-started
+  # Installation, then basic concepts. The old entrypoint, /get-started, is a
+  # hub page: three link blurbs, no install command and no code, so a task
+  # pointed there was measuring navigation and calling it a docs gap.
+  path:
+    - https://docs.streamlit.io/get-started/installation
+    - https://docs.streamlit.io/get-started/fundamentals/main-concepts
   allow:
     - docs.streamlit.io
     - streamlit.io
 setup:
   - python3 -m venv .venv
 success:
-  # The harness, not the agent, decides whether the app really runs: serve it
-  # headless and ask Streamlit's own health endpoint.
-  serve: >
-    .venv/bin/streamlit run app.py --server.headless true
-    --server.port $QS_PORT --browser.gatherUsageStats false
-  wait_http:
-    path: /_stcore/health
-    contains: ok
+  # The documentation names no filename: `streamlit run your_script.py` is a
+  # placeholder. So find the script rather than dictating one, and let the
+  # harness decide whether it really runs.
   script: |
     set -e
-    test -f app.py || qs_fail "no app.py, so the quickstart never produced an app"
+    app=$(find . -maxdepth 2 -name "*.py" -not -path "./.venv/*" \
+      -exec grep -l "streamlit" {} + | head -1)
+    test -n "$app" \
+      || qs_fail "no Python file in the workspace imports streamlit, so no app was written"
     .venv/bin/streamlit --version
+    # Streamlit renders in the browser, so the served HTML carries no app text.
+    # Its own health endpoint is the strongest thing the harness can assert
+    # without driving a browser, and it does prove the script booted.
+    qs_serve .venv/bin/streamlit run "$app" --server.headless true \
+      --server.port "$QS_PORT" --browser.gatherUsageStats false
+    qs_wait_http /_stcore/health --contains ok
 budgets:
   max_turns: 20
   max_seconds: 420
 replay:
   - .venv/bin/pip install --quiet streamlit
   - |
-    cat > app.py <<'PY'
+    cat > your_script.py <<'PY'
     import streamlit as st
 
-    st.title("Hello")
-    value = st.slider("Pick a number", 0, 100, 25)
-    st.write("You picked", value)
+    st.write("Hello world")
     PY

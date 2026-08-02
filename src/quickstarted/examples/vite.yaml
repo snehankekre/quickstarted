@@ -1,14 +1,20 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: vite-quickstart
 goal: >
-  Using Vite, scaffold a plain JavaScript project in this workspace (no
-  framework), then produce a production build of it. Leave the built output in
-  place. Do not start a dev server and leave it running.
-image: node:22-slim
+  Following Vite's guide, scaffold a project in this workspace using the vanilla
+  JavaScript template, then produce the production build the guide describes.
+  Leave the built output in place, and do not leave a dev server running.
 docs:
-  entrypoint: https://vite.dev/guide/
+  # The guide scaffolds; building for production is its own page, which the
+  # guide links to. A task that stops at the first page is not testing the
+  # route a reader actually takes to a deployable build.
+  path:
+    - https://vite.dev/guide/
+    - https://vite.dev/guide/build
   allow:
     - vite.dev
     - vitejs.dev
+image: node:22-slim
 success:
   script: |
     set -e

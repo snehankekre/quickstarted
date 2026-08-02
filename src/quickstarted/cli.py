@@ -126,28 +126,31 @@ def _resolve_paths(paths) -> list[str]:
 def _check_entrypoint(task, docs) -> None:
     """Ask whether the documentation is actually reachable, before a paid run.
 
-    A typo in an entrypoint costs a whole sweep otherwise: the agent is pointed
-    at a 404, reads nothing, fails, and the run is classified as a documentation
-    gap because from the harness's side that is exactly what it looks like.
+    A typo in a page costs a whole sweep otherwise: the agent is pointed at a
+    404, reads nothing, fails, and the run is classified as a documentation gap
+    because from the harness's side that is exactly what it looks like. Every
+    page on the documented route is checked, not only the first, since a route
+    is only as good as its worst link.
     """
-    if not docs.robots_allows(task.docs_entrypoint):
-        print(
-            f"warning  {task.docs_entrypoint} is disallowed by robots.txt, so "
-            f"the agent will be refused it. Use --ignore-robots only if the "
-            f"documentation is yours."
-        )
-        return
-    try:
-        result = docs.get(task.docs_entrypoint)
-    except Exception as exc:
-        print(f"warning  {task.docs_entrypoint} could not be fetched: {exc}")
-        return
-    if result.blocked_reason:
-        print(f"warning  {task.docs_entrypoint} was blocked: {result.blocked_reason}")
-    elif not result.text.strip():
-        print(f"warning  {task.docs_entrypoint} fetched but had no readable text")
-    elif result.followed_from:
-        print(f"note     {task.docs_entrypoint} redirects to {result.url}")
+    for page in task.docs_path:
+        if not docs.robots_allows(page):
+            print(
+                f"warning  {page} is disallowed by robots.txt, so the agent "
+                f"will be refused it. Use --ignore-robots only if the "
+                f"documentation is yours."
+            )
+            continue
+        try:
+            result = docs.get(page)
+        except Exception as exc:
+            print(f"warning  {page} could not be fetched: {exc}")
+            continue
+        if result.blocked_reason:
+            print(f"warning  {page} was blocked: {result.blocked_reason}")
+        elif not result.text.strip():
+            print(f"warning  {page} fetched but had no readable text")
+        elif result.followed_from:
+            print(f"note     {page} redirects to {result.url}")
 
 
 def cmd_validate(args) -> int:
@@ -310,7 +313,12 @@ goal: >
   TODO: state what a reader should end up with after following the quickstart.
 
 docs:
-  entrypoint: {entrypoint}
+  # The route a reader takes, in the order your documentation puts it. Add the
+  # other pages they pass through: if your install step is on one page and your
+  # first example on another, a task naming only one of them measures whether
+  # the agent goes looking rather than whether the docs work.
+  path:
+    - {entrypoint}
   # Readable only through read_docs, never from the shell, which is what keeps
   # the record of pages read complete. Do not list package registries here.
   allow:
@@ -322,11 +330,13 @@ setup:
   - python3 -m venv .venv
 
 # Exit code 0 is a pass and nothing else is. Assert what your quickstart already
-# promises the reader, and make a failure say what it saw.
+# promises the reader, and make a failure say what it saw. Name no file your
+# documentation does not name: if the quickstart ends at a value on a terminal,
+# use expect_output rather than inventing somewhere to put it.
 success:
   script: |
     set -e
-    test -f app.py || qs_fail "no app.py, so the quickstart produced nothing"
+    qs_fail "TODO: assert what your quickstart promises"
 
 # The literal commands your documentation tells a reader to type. Free to run,
 # needs no API key, and if these fail no reader stands a chance.

@@ -102,6 +102,7 @@ nav:
       - Environment variables: reference/environment.md
   - Why it works this way:
       - Deterministic scoring: explanation/scoring.md
+      - Testing the quickstart, not your idea of it: explanation/fidelity.md
       - The egress proxy: explanation/proxy.md
       - Compared to other tools: explanation/comparison.md
 

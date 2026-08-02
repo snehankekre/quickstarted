@@ -42,7 +42,13 @@ class Budgets:
 class Task:
     name: str
     goal: str
-    docs_entrypoint: str
+    #: The documented route, in the order the documentation puts it. A
+    #: quickstart is rarely one page: FastAPI's install line is on
+    #: `/tutorial/` and its first application is on `/tutorial/first-steps/`,
+    #: and a task that names only the second is not testing the quickstart.
+    #: Every page here is offered to the agent up front; the allowlist still
+    #: governs what else it may follow.
+    docs_path: tuple[str, ...]
     docs_allow: tuple[str, ...]
     success_script: str
     setup: tuple[str, ...] = ()
@@ -62,6 +68,22 @@ class Task:
     #: rather than the invocation.
     image: str = ""
     source: str = ""
+
+    def __post_init__(self) -> None:
+        # `docs_path` took the positional slot `docs_entrypoint` used to hold,
+        # so a caller written against 0.5 passes a string here. Python is happy
+        # to iterate it, and the replay agent then reads one documentation page
+        # per character. Fail loudly instead.
+        if isinstance(self.docs_path, str):
+            raise TaskError(
+                "Task.docs_path is a sequence of URLs, not a string; "
+                "docs_entrypoint became docs_path in 0.6.0"
+            )
+
+    @property
+    def docs_entrypoint(self) -> str:
+        """Where a reader starts. Kept because reports and probes want one URL."""
+        return self.docs_path[0]
 
     @property
     def check_script(self) -> str:
@@ -191,7 +213,43 @@ def _normalize_host(entry: str, source: str) -> str:
     return entry
 
 
-_SUCCESS_KEYS = {"script", "file", "serve", "wait_http"}
+def _docs_path(docs: dict, source: str) -> tuple[str, ...]:
+    """The documented route, from `path:` or the older single `entrypoint:`.
+
+    Both are accepted; `entrypoint` is the one-page case and stays valid, so
+    tasks written against 0.5 keep loading. Giving both is an error rather than
+    a merge: which page a reader starts at is the thing being tested, and
+    guessing at it would put the harness's opinion into the measurement.
+    """
+    listed = docs.get("path")
+    entrypoint = docs.get("entrypoint")
+    if listed and entrypoint:
+        raise TaskError(
+            f"{source}: docs has both 'path' and 'entrypoint'; put the "
+            f"entrypoint first in 'path' and drop the other"
+        )
+    if listed is not None:
+        pages = _str_list(listed, "docs.path", source)
+        if not pages:
+            raise TaskError(f"{source}: docs.path is empty")
+    elif entrypoint:
+        pages = (str(entrypoint).strip(),)
+    else:
+        raise TaskError(f"{source}: missing required field 'docs.path'")
+
+    for page in pages:
+        parsed = urlparse(page)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise TaskError(f"{source}: docs.path entries must be http(s) URLs, got {page!r}")
+    seen = set()
+    for page in pages:
+        if page in seen:
+            raise TaskError(f"{source}: docs.path lists {page!r} twice")
+        seen.add(page)
+    return pages
+
+
+_SUCCESS_KEYS = {"script", "file", "serve", "wait_http", "expect_output"}
 
 
 def _assertion_script(success: dict, task_path: Path, source: str) -> str:
@@ -260,6 +318,51 @@ def _wait_http_call(spec, source: str) -> str:
     return "qs_wait_http " + " ".join(args)
 
 
+def _expect_output_call(spec, source: str) -> str:
+    """Generate one `qs_expect_output` line from the declarative form.
+
+    The counterpart to `wait_http` for quickstarts that end at a terminal
+    rather than a server. Without it a task whose documentation says "prints
+    35.75" has to invent a file to hold the number, and the check then tests
+    the invention.
+    """
+    if not isinstance(spec, dict):
+        raise TaskError(f"{source}: success.expect_output must be a mapping")
+    unknown = set(spec) - {"contains", "matches"}
+    if unknown:
+        raise TaskError(f"{source}: unknown expect_output keys: {sorted(unknown)}")
+    args: list[str] = []
+    for key, flag in (("contains", "--contains"), ("matches", "--matches")):
+        value = spec.get(key)
+        if value is None:
+            continue
+        for item in value if isinstance(value, list) else [value]:
+            text = str(item)
+            # `grep -Eq ""` matches any non-empty file. A check that asserts
+            # nothing while looking like it asserts something is worse than no
+            # check, because a passing suite is evidence to whoever reads it.
+            if not text:
+                raise TaskError(
+                    f"{source}: success.expect_output.{key} has an empty string, "
+                    f"which matches anything"
+                )
+            # grep treats a newline inside the pattern argument as a pattern
+            # separator, so a multi-line YAML scalar silently becomes an OR of
+            # its lines. Refuse it rather than assert something weaker than
+            # what the task says.
+            if "\n" in text.strip("\n"):
+                raise TaskError(
+                    f"{source}: success.expect_output.{key} spans multiple lines, "
+                    f"which grep would treat as alternatives; list them separately"
+                )
+            args += [flag, _shell_quote(text.strip("\n"))]
+    if not args:
+        raise TaskError(
+            f"{source}: success.expect_output needs 'contains' or 'matches'"
+        )
+    return "qs_expect_output " + " ".join(args)
+
+
 def _shell_quote(value: str) -> str:
     return "'" + value.replace("'", "'\\''") + "'"
 
@@ -270,11 +373,19 @@ def _load_success_script(success: dict, task_path: Path, source: str) -> str:
         raise TaskError(f"{source}: unknown success keys: {sorted(unknown)}")
     assertion = _assertion_script(success, task_path, source)
     serve = success.get("serve")
+    # `wait_http:` and `expect_output:` with nothing under them parse as None,
+    # and truthiness then dropped the key silently: the task looked like it
+    # asserted something and compiled to a check that did not. Presence is what
+    # counts, and an empty body is an error below.
     wait = success.get("wait_http")
+    expect = success.get("expect_output")
+    for key, value in (("wait_http", wait), ("expect_output", expect)):
+        if key in success and not value:
+            raise TaskError(f"{source}: success.{key} is empty; give it something to assert")
 
-    if not (assertion or serve or wait):
+    if not (assertion or serve or wait or expect):
         raise TaskError(f"{source}: missing required field 'script' (or 'file')")
-    if serve and not (wait or assertion):
+    if serve and not (wait or assertion or expect):
         # Starting a server proves nothing. Without something that decides, the
         # check would exit 0 for any application that boots, including one that
         # answers every request with a 500.
@@ -288,16 +399,21 @@ def _load_success_script(success: dict, task_path: Path, source: str) -> str:
     # No injected `set -e`. An inline script governs itself today and a
     # declarative one should behave the same way; `qs_wait_http` exits on its
     # own when it gives up, so the generated lines do not need it.
-    lines = []
+    generated = []
     if serve:
         if not isinstance(serve, str):
             raise TaskError(f"{source}: success.serve must be a command string")
-        lines.append(f"qs_serve {serve.strip()}")
+        generated.append(f"qs_serve {serve.strip()}")
     if wait:
-        lines.append(_wait_http_call(wait, source))
-    if assertion:
-        lines.append(assertion)
-    return "\n".join(lines) + "\n" if len(lines) > 1 else assertion
+        generated.append(_wait_http_call(wait, source))
+    if expect:
+        generated.append(_expect_output_call(expect, source))
+    # A task that declares only `wait_http` used to compile to an empty script,
+    # which exits 0 and passes everything. Anything generated is now returned
+    # whether or not an inline assertion joins it.
+    if not generated:
+        return assertion
+    return "\n".join(generated + ([assertion] if assertion else [])) + "\n"
 
 
 def load_task(path: str | Path, defaults: dict | None = None) -> Task:
@@ -323,17 +439,15 @@ def load_task(path: str | Path, defaults: dict | None = None) -> Task:
     docs = _require(data, "docs", source)
     if not isinstance(docs, dict):
         raise TaskError(f"{source}: 'docs' must be a mapping")
-    entrypoint = str(_require(docs, "entrypoint", source)).strip()
-    parsed = urlparse(entrypoint)
-    if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        raise TaskError(f"{source}: docs.entrypoint must be an http(s) URL")
+    docs_path = _docs_path(docs, source)
     allow = [
         _normalize_host(h, source)
         for h in _str_list(docs.get("allow"), "docs.allow", source)
     ]
-    entry_host = parsed.hostname.lower()
-    if entry_host not in allow:
-        allow.insert(0, entry_host)
+    for page in reversed(docs_path):
+        host = (urlparse(page).hostname or "").lower()
+        if host not in allow:
+            allow.insert(0, host)
 
     network = data.get("network") or {}
     if not isinstance(network, dict):
@@ -370,7 +484,7 @@ def load_task(path: str | Path, defaults: dict | None = None) -> Task:
     return Task(
         name=name,
         goal=goal,
-        docs_entrypoint=entrypoint,
+        docs_path=docs_path,
         docs_allow=tuple(allow),
         success_script=success_script,
         setup=_str_list(data.get("setup"), "setup", source),

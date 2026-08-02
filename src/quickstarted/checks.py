@@ -31,6 +31,9 @@ PRELUDE = r"""
 # whatever this task asserts below.
 QS_LOG="${TMPDIR:-/tmp}/quickstarted-serve.log"
 QS_BODY="${TMPDIR:-/tmp}/quickstarted-body.out"
+# Every command the agent ran and what it printed, written by the harness
+# after the agent stops and before this script starts.
+QS_SESSION_LOG="${QS_SESSION_LOG:-$PWD/.quickstarted-session.log}"
 _qs_pids=""
 _qs_last="never attempted"
 
@@ -207,6 +210,52 @@ $2"; shift 2 ;;
   done
   _qs_log_tail
   qs_fail "$_qs_url never answered as expected after ${_qs_timeout}s. Last attempt: $_qs_last"
+}
+# Assert that the run itself printed something, rather than that it left a
+# file behind.
+#
+#   qs_expect_output --contains 35.75
+#   qs_expect_output --matches '^\{.*item_id.*\}$'
+#
+# For the many quickstarts whose promise is a value on a terminal. Asserting a
+# file instead means inventing one the documentation never asked for, and then
+# testing the task author's invention rather than the docs.
+#
+# This trusts the agent's own transcript, which a determined agent could satisfy
+# with `echo`. So does every check that greps a file the agent wrote. Where the
+# documentation produces durable state, assert on the state as well: this is a
+# second way to ask, not a replacement for asking properly.
+qs_expect_output() {
+  if [ ! -f "$QS_SESSION_LOG" ]; then
+    qs_fail "no recorded session output at $QS_SESSION_LOG"
+  fi
+  command -v grep >/dev/null 2>&1 || \
+    qs_fail "qs_expect_output needs grep, which this image does not have"
+  while [ $# -gt 0 ]; do
+    # Without this, `shift 2` on a one-argument tail loops forever under a
+    # script with no `set -e`, and exits 1 printing nothing under one with it.
+    # A verdict with no reason is the thing these helpers exist to prevent.
+    [ $# -ge 2 ] || qs_fail "qs_expect_output: $1 needs a value"
+    case "$1" in
+      --contains)
+        _qs_pat=$(printf '%s' "$2" | sed 's/[][\.*^$(){}?+|/]/\\&/g')
+        _qs_show="$2" ;;
+      --matches)
+        _qs_pat="$2"
+        _qs_show="$2" ;;
+      *) qs_fail "qs_expect_output: unknown option $1" ;;
+    esac
+    # `grep -Eq ""` matches any non-empty file, so an empty pattern is a check
+    # that asserts nothing while looking like it asserts something.
+    [ -n "$_qs_pat" ] || qs_fail "qs_expect_output: empty pattern matches anything"
+    if ! grep -Eq -- "$_qs_pat" "$QS_SESSION_LOG"; then
+      printf -- '--- last 20 lines the run printed ---\n'
+      tail -20 "$QS_SESSION_LOG"
+      printf -- '-------------------------------------\n'
+      qs_fail "nothing the run printed matched: $_qs_show"
+    fi
+    shift 2
+  done
 }
 # ---- end quickstarted check helpers ---------------------------------------
 """

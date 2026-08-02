@@ -4,4 +4,4 @@ Kept separate so low-level modules can stamp the version (User-Agent, results
 schema) without a circular import through `quickstarted/__init__.py`.
 """
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"

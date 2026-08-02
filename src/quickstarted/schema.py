@@ -68,14 +68,36 @@ TASK_SCHEMA: dict = {
         },
         "docs": {
             "type": "object",
-            "required": ["entrypoint"],
             "additionalProperties": False,
+            # One or the other, never both: which page a reader starts at is
+            # what the task is measuring, so the harness must not guess.
+            "oneOf": [
+                {"required": ["path"], "not": {"required": ["entrypoint"]}},
+                {"required": ["entrypoint"], "not": {"required": ["path"]}},
+            ],
             "properties": {
+                "path": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                    },
+                    "description": (
+                        "The documented route, in the order the project puts it. "
+                        "A quickstart is rarely one page: an install step and a "
+                        "first application often live apart, and a task naming "
+                        "only the second is not testing the quickstart."
+                    ),
+                },
                 "entrypoint": {
                     "type": "string",
                     "format": "uri",
                     "pattern": "^https?://",
-                    "description": "First page the agent is pointed at.",
+                    "description": (
+                        "The single-page case, equivalent to a one-item 'path'."
+                    ),
                 },
                 "allow": dict(
                     _HOSTNAMES,
@@ -151,9 +173,44 @@ TASK_SCHEMA: dict = {
                         "must also assert something."
                     ),
                 },
+                "expect_output": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    # An empty body compiled to a check that asserted nothing
+                    # while looking like it asserted something.
+                    "minProperties": 1,
+                    "description": (
+                        "Assert on what the run printed, for the many "
+                        "quickstarts whose promise is a value on a terminal "
+                        "rather than a file on disk. Asserting a file instead "
+                        "means inventing one the documentation never asked for. "
+                        "This reads the agent's own transcript, so where the "
+                        "documentation also produces durable state, assert on "
+                        "that state as well."
+                    ),
+                    "properties": {
+                        "contains": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}},
+                            ],
+                            "description": "Literal text the run must have printed.",
+                        },
+                        "matches": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}},
+                            ],
+                            "description": (
+                                "Extended regular expression the run's output must match."
+                            ),
+                        },
+                    },
+                },
                 "wait_http": {
                     "type": "object",
                     "additionalProperties": False,
+                    "minProperties": 1,
                     "description": (
                         "Poll until the endpoint answers as this task says it "
                         "should, keeping the last error and dumping the server "

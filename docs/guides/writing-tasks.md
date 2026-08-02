@@ -9,10 +9,17 @@
 quickstarted init https://fastapi.tiangolo.com/tutorial/first-steps/
 ```
 
-That writes `tasks/fastapi-quickstart.yaml` with the entrypoint filled in, the
-host allowlist derived from the URL, and a schema line that gives any
+That writes `tasks/fastapi-quickstart.yaml` with the documentation path filled
+in, the host allowlist derived from the URL, and a schema line that gives any
 language-server editor completion on every field below. It validates as written,
 so you can edit it one field at a time and check your work as you go.
+
+Add the other pages a reader passes through on the way. FastAPI's install
+instruction is not on the page above, it is on `/tutorial/`, and a task that
+omits it measures whether the agent goes looking rather than whether the
+tutorial works. See [why a path rather than a page][path].
+
+[path]: ../reference/task-schema.md#why-a-path-rather-than-a-page
 
 ## Success checks you can copy
 
@@ -22,9 +29,9 @@ or three lines. You are asserting what your tutorial already promises, so start
 by asking what you would type in a terminal to check that the tutorial worked.
 
 ```yaml
-# The file the tutorial told the reader to create
+# The file the tutorial told the reader to create, in the tutorial's own words
 success:
-  script: test -f app.py
+  script: test -f main.py
 ```
 
 ```yaml
@@ -40,19 +47,21 @@ success:
 ```
 
 ```yaml
-# The output contains what the page said it would
+# The run printed what the page said it would
 success:
-  script: .venv/bin/python fetch.py | grep -q 200
+  expect_output:
+    contains: "200"
 ```
 
 ```yaml
 # Several of the above, stopping at the first failure
 success:
+  expect_output:
+    contains: "200"
   script: |
     set -e
-    test -f fetch.py
     .venv/bin/python -c "import httpx"
-    .venv/bin/python fetch.py | grep -q 200
+    test -f main.py  # only because this tutorial names main.py
 ```
 
 `set -e` is what makes a multi-line script stop at the first failing line. It
@@ -67,8 +76,8 @@ success:
     set -e
     .venv/bin/python - <<'PY'
     import csv
-    rows = list(csv.DictReader(open("out.csv")))
-    assert [r["name"] for r in rows] == ["grace", "ada", "edsger"], rows
+    rows = list(csv.DictReader(open("output.csv")))
+    assert [r["name"] for r in rows][0] == "Alice Archer", rows
     PY
 ```
 
@@ -112,17 +121,16 @@ one that will judge it for real: another Python, another PATH, and no container.
 ## Make a failing check say what it saw
 
 The exit code decides the verdict. The output is the bug report, and they are
-separate jobs. `test -f out.csv` needs no output because the message is obvious
+separate jobs. `test -f output.csv` needs no output because the message is obvious
 from the check itself. A check that starts a server and polls it needs to say
 what happened, or a failure arrives with an exit code and nothing else.
 
-This bit us. A benchmark run reported `docs_gap` on the FastAPI task with exit
-code 1 and an empty message, which is unactionable: no way to tell a missing
-route from a server that never booted. The cause was `set -e` aborting the
-script at the failing command, before the lines meant to report the problem
-could run.
+The failure mode is specific: a check that reports `docs_gap` with exit code 1
+and an empty message gives no way to tell a missing route from a server that
+never booted. It usually comes from `set -e` aborting the script at the failing
+command, before the lines meant to report the problem could run.
 
-`serve` and `wait_http` exist because of that failure. They keep the last error
+`serve` and `wait_http` exist to prevent that. They keep the last error
 rather than swallowing it, print the server log when they give up, and put the
 reason on the final line, which is the line the console summary shows.
 "Connection refused" and "HTTP 200 with the wrong body" are different bugs in
@@ -168,25 +176,56 @@ success:
     set -e
     .venv/bin/python - <<'PY'
     import csv
-    rows = list(csv.DictReader(open("out.csv")))
-    assert [r["name"] for r in rows] == ["grace", "ada", "edsger"], rows
+    rows = list(csv.DictReader(open("output.csv")))
+    assert [r["name"] for r in rows][0] == "Alice Archer", rows
     PY
 ```
 
 ```yaml
 # Bad: passes only if the agent used one particular function.
 success:
-  script: grep -q "pl.read_csv" script.py
+  script: grep -q "pl.read_csv" example.py
 ```
 
 The second version fails a reader who used `scan_csv`, which the documentation
 also recommends. You would be measuring your own expectations.
 
+## Name nothing the documentation does not name
+
+This is the rule the rest of this page is really about, and it is the one that
+is easiest to break without noticing.
+
+Write the goal from the page, then the check from the goal. If you find
+yourself writing the goal from the check, stop: you are about to invent an
+artefact so that the check has something to look at, and the task will then
+measure your invention.
+
+Here is the gap, for six real quickstarts:
+
+| Task | The documentation says | The task demanded |
+| --- | --- | --- |
+| fastapi | "copy that to a file `main.py`" | `app.py` |
+| uv | `uv init` generates a `main.py` that prints a greeting | overwrite it to print `ok` |
+| prisma | ends at `console.log` | write `out.json` |
+| polars | ends at `print(df_csv)` | write `script.py` and `out.csv` |
+| duckdb | `con.table("test").show()` | write `script.py`, `shop.db`, `total.txt` |
+| httpx | a REPL session | write `fetch.py` |
+
+A reader following FastAPI's tutorial exactly produces `main.py`. The task told
+them to produce `app.py`. Whatever that measures, it is not the tutorial.
+
+The forcing function was the check: it could only see the filesystem, so goals
+were written backwards from what it could assert. [`expect_output`][eo] exists
+to remove that pressure. When a quickstart ends at a value on a terminal,
+assert the value on the terminal.
+
+[eo]: ../reference/task-schema.md#expect_output
+
 ## Do not assert incidental paths
 
-An early task in this repo checked for a `.venv` directory that the
-documentation never mentions. An agent created `venv/` instead, did everything
-else correctly, and was marked as a documentation failure.
+A check that asserts `.venv/bin/python` fails an agent that created `venv/`
+instead, did everything else correctly, and had no way to know which name you
+wanted. That is a working run recorded as a documentation failure.
 
 If `setup` creates something the success script depends on, that is fine. The
 agent is told what setup already ran, so it will not rebuild it. Anything else
@@ -211,7 +250,7 @@ success:
 
 `$QS_PORT` is a free port picked for this task. The polling, the log capture,
 the last error and the kill are the harness's job, which is the point: the
-hand-written version of this block was twenty lines, four tasks in this repo
+hand-written version of this block is twenty lines, every task that serves
 each had their own copy, and the copies were where the `if !` idiom got dropped.
 
 When the shape does not fit, the same helpers are available directly:
@@ -221,18 +260,20 @@ success:
   script: |
     set -e
     if [ -x .venv/bin/fastapi ]; then
-      qs_serve .venv/bin/fastapi run app.py --port "$QS_PORT"
+      qs_serve .venv/bin/fastapi run main.py --port "$QS_PORT"
     elif .venv/bin/python -c "import uvicorn" 2>/dev/null; then
-      qs_serve .venv/bin/python -m uvicorn app:app --port "$QS_PORT"
+      qs_serve .venv/bin/python -m uvicorn main:app --port "$QS_PORT"
     else
       qs_fail "neither the fastapi CLI nor uvicorn is installed"
     fi
-    qs_wait_http /items/42 --json item_id=42
+    qs_wait_http / --json message="Hello World"
 ```
 
-That is [the real FastAPI check][fa], and it branches because the tutorial
-documents two ways to serve. Requiring one of them would measure my expectation
-rather than the documentation, and it already cost three runs once.
+That is close to [the real FastAPI check][fa], and it branches because the
+tutorial documents more than one way to serve. Requiring one of them would
+measure your expectation rather than the documentation: an agent that installed
+plain `fastapi` rather than `fastapi[standard]` has no uvicorn, and a working
+application would be recorded as a documentation gap.
 
 [fa]: https://github.com/snehankekre/quickstarted/blob/main/tasks/checks/fastapi.sh
 
@@ -244,7 +285,8 @@ up as a `harness_error` rather than a documentation problem.
 
 ```yaml
 docs:
-  entrypoint: https://docs.pola.rs/user-guide/getting-started/
+  path:
+    - https://docs.pola.rs/user-guide/getting-started/
   allow:
     - docs.pola.rs      # documentation
 network:

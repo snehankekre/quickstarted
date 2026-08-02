@@ -1,30 +1,38 @@
+# yaml-language-server: $schema=https://snehankekre.com/quickstarted/task-schema.json
 name: tailwind-quickstart
 goal: >
-  Set up Tailwind CSS in this workspace. Write an index.html containing an h1
-  that uses the Tailwind utility classes text-3xl and font-bold, then build the
-  CSS that index.html needs into a file called out.css. Do not start a watcher
-  and leave it running.
+  Follow Tailwind CSS's installation guide for the Tailwind CLI, all the way to
+  the HTML it ends with, using the file names and the example markup the guide
+  uses. Build your CSS once rather than leaving the watcher running.
 image: node:22-slim
 docs:
-  entrypoint: https://tailwindcss.com/docs/installation
+  # The CLI page, not /docs/installation. That one leads with the Vite plugin,
+  # whose documented step is `npm run dev`, a watcher this sandbox cannot leave
+  # running. Pointing a task at a page and then forbidding what it says to do
+  # scores the harness's constraint as a documentation failure.
+  path:
+    - https://tailwindcss.com/docs/installation/tailwind-cli
   allow:
     - tailwindcss.com
 success:
   script: |
     set -e
-    fail() { echo "check failed: $1"; exit 1; }
-    test -f index.html || fail "index.html was never created"
-    test -f out.css || fail "out.css was never built"
-    grep -q "text-3xl" index.html || fail "index.html does not use text-3xl"
-    grep -q "font-bold" index.html || fail "index.html does not use font-bold"
-    # Tailwind only emits a utility it saw used, so finding these rules proves the
-    # build actually scanned index.html.
+    test -f src/index.html \
+      || qs_fail "no src/index.html, so the guide's last step never happened"
+    test -f src/output.css \
+      || qs_fail "no src/output.css, so the CLI build never produced a stylesheet"
+    for class in text-3xl font-bold underline; do
+      grep -q -- "$class" src/index.html \
+        || qs_fail "src/index.html does not use the documented class $class"
+    done
+    # Tailwind only emits a utility it saw used, so finding these rules proves
+    # the build actually scanned the HTML rather than emitting a default sheet.
     node -e '
-      const css = require("fs").readFileSync("out.css", "utf8");
-      for (const cls of ["text-3xl", "font-bold"]) {
+      const css = require("fs").readFileSync("src/output.css", "utf8");
+      for (const cls of ["text-3xl", "font-bold", "underline"]) {
         if (!css.includes("." + cls)) {
-          console.log("check failed: out.css has no rule for ." + cls +
-            ", so the build did not scan index.html");
+          console.log("check failed: src/output.css has no rule for ." + cls +
+            ", so the build did not scan src/index.html");
           process.exit(1);
         }
       }
@@ -35,13 +43,24 @@ budgets:
 replay:
   - npm init -y --silent
   - npm install --silent tailwindcss @tailwindcss/cli
+  - mkdir -p src
+  - printf '@import "tailwindcss";\n' > src/input.css
   - |
-    cat > index.html <<'HTML'
+    cat > src/index.html <<'HTML'
     <!doctype html>
     <html>
-      <head><link href="./out.css" rel="stylesheet" /></head>
-      <body><h1 class="text-3xl font-bold">Hello</h1></body>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link href="./output.css" rel="stylesheet">
+    </head>
+    <body>
+      <h1 class="text-3xl font-bold underline">
+        Hello world!
+      </h1>
+    </body>
     </html>
     HTML
-  - printf '@import "tailwindcss";\n' > src.css
-  - npx @tailwindcss/cli -i src.css -o out.css
+  # The documented command ends in --watch, which would never return. Dropping
+  # that one flag is the only change; everything else is the guide's own line.
+  - npx @tailwindcss/cli -i ./src/input.css -o ./src/output.css
