@@ -3,6 +3,35 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] - 2026-08-02
+
+The first agent run against 0.6.0 found the things a replay run could not.
+Nine of ten tasks passed with GPT-5.2, reading the multi-page routes the way
+they were meant to be read.
+
+### Fixed
+
+- **`quickstarted examples` printed only the first page of a route**, so a
+  two-page task looked like a one-page one, which is precisely the assumption
+  0.6.0 exists to remove.
+- **The Streamlit task's budget was too small to reach its own goal.** Streamlit
+  pulls pandas, numpy and pyarrow, and a cold install in a container under
+  parallel workers took 434s: the first attempt hit the 300s per-command
+  timeout and the retry blew the 420s wall clock, so the agent never got as far
+  as writing an application. The run was discarded as `budget_exhausted`, which
+  is the documented way a budget that is too small quietly removes a task from
+  the results instead of failing it. Now 900s with a 600s command ceiling.
+
+### Documentation
+
+- **A guide for reading a run**, which the CLI reference only gestured at:
+  what the report page shows, when to drop to a single transcript instead, and
+  how `diff` is meant to be used on a documentation pull request. The worked
+  example is the Streamlit timeout above, because a transcript is what turns an
+  unexplained "no evidence" row into a budget you can raise.
+- `SECURITY.md` describes `.quickstarted-session.log`: the one file the harness
+  writes into the workspace, and why it lands after the agent stops.
+
 ## [0.6.0] - 2026-08-02
 
 The release that goes back and asks whether the tasks in this repository were

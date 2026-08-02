@@ -36,7 +36,14 @@ success:
     qs_wait_http /_stcore/health --contains ok
 budgets:
   max_turns: 20
-  max_seconds: 420
+  # Streamlit pulls pandas, numpy and pyarrow, and a cold install in a
+  # container under parallel workers took 434s on a real run: the first attempt
+  # hit the 300s per-command timeout, and the retry blew a 420s wall clock. The
+  # task was then discarded as budget_exhausted, which is the documented way a
+  # budget that is too small quietly removes a task from the results rather
+  # than failing it.
+  max_seconds: 900
+  max_command_seconds: 600
 replay:
   - .venv/bin/pip install --quiet streamlit
   - |

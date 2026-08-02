@@ -251,6 +251,19 @@ def test_examples_ship_in_the_package(capsys):
     assert "httpx" in out and "streamlit" in out
 
 
+def test_examples_lists_every_page_of_a_route(capsys):
+    """Printing only the first URL made a two-page task look like a one-page
+    one, which is exactly the assumption docs.path exists to remove."""
+    from quickstarted import examples
+    from quickstarted.task import load_task
+
+    assert main(["examples"]) == 0
+    out = capsys.readouterr().out
+    for name in examples.names():
+        for page in load_task(examples.path_for(name)).docs_path:
+            assert page in out, f"{name}: {page} missing from the listing"
+
+
 def test_run_example_needs_no_task_file(tmp_path, capsys, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert main(["validate", "--example", "httpx"]) == 0

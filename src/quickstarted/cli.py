@@ -602,12 +602,20 @@ def cmd_diff(args) -> int:
 
 
 def cmd_examples(args) -> int:
-    """List the tasks that ship with the package."""
+    """List the tasks that ship with the package.
+
+    Every page of the documented route, not just the first. Printing one URL
+    made a two-page task look like a one-page one, which is the assumption
+    0.6.0 exists to remove.
+    """
     print("Example tasks, runnable without cloning anything:")
     for name in examples.names():
         task = load_task(examples.path_for(name))
         modes = "replay+agent" if task.replay else "agent-only"
-        print(f"  {name:12} {task.docs_entrypoint}  ({modes})")
+        first, *rest = task.docs_path
+        print(f"  {name:12} {first}  ({modes})")
+        for page in rest:
+            print(f"  {'':12} {page}")
     print()
     print("  quickstarted run --example httpx --agent replay")
     return 0

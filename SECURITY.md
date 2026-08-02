@@ -33,6 +33,15 @@ No credential is passed into the sandbox. The executor builds a scrubbed
 environment containing only `PATH`, `HOME`, `TMPDIR`, locale, and the proxy
 variables; a test asserts that no API key reaches a command.
 
+## What the harness writes into the workspace
+
+One file, `.quickstarted-session.log`, holding what the agent's own commands
+printed. It backs `success.expect_output`, and it is written after the agent
+stops and before the success check starts, so the agent can never read it back.
+That ordering matters for the same reason the success script never touches the
+workspace: the workspace is the agent's own directory, and anything readable
+there is something it can be graded against having seen.
+
 ## Fetching other people's documentation
 
 Benchmarking means requesting pages from organisations who did not ask to be

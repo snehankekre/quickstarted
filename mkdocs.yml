@@ -89,6 +89,7 @@ nav:
   - Guides:
       - Writing tasks: guides/writing-tasks.md
       - Replay mode: guides/replay-mode.md
+      - Reading a run: guides/reading-a-run.md
       - Sandboxing: guides/sandboxing.md
       - Pass rates: guides/pass-rates.md
       - Measuring llms.txt: guides/affordances.md

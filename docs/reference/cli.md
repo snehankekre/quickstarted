@@ -128,6 +128,10 @@ own output and the page the agent was on, and the transcripts folded away
 behind disclosures. No external stylesheet, script, or font, because a report
 that fetches anything renders differently for the person you sent it to.
 
+The output is HTML whatever you name the file. [Reading a
+run](../guides/reading-a-run.md) walks through what the page shows and when to
+drop to a single transcript instead.
+
 ## quickstarted schema
 
 ```bash
